@@ -1,0 +1,24 @@
+name: Publish
+
+on:
+  page_build:
+  release:
+    types:
+      - created
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    environment: CratesIOToken
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Deploy
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: make deploy
