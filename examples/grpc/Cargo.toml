@@ -28,10 +28,10 @@ serde_json = "^1.0.66"
 async-trait = "^0.1"
 
 # CQRS framework
-cqrs-es2 = { version = "0.8.0", path = "../../../cqrs-es2" }
+cqrs-es2 = { version = "0.8.0" }
 
 # Async postgres store implementation
-tokio-cqrs-es2-store = { version = "0.1.0", path = "../../", default-features = false, features = [
+tokio-cqrs-es2-store = { path = "../../", default-features = false, features = [
   "with-sqlx-postgres",
 ] }
 
