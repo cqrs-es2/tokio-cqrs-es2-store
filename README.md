@@ -1,47 +1,93 @@
-# cqrs-es2
+# tokio-cqrs-es2-store
 
-**A Rust library providing lightweight CQRS and event sourcing framework.**
+**Async implementation of the cqrs-es2 store.**
 
-[![Publish](https://github.com/brgirgis/cqrs-es2/actions/workflows/crates-io.yml/badge.svg)](https://github.com/brgirgis/cqrs-es2/actions/workflows/crates-io.yml)
-[![Test](https://github.com/brgirgis/cqrs-es2/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/brgirgis/cqrs-es2/actions/workflows/rust-ci.yml)
-[![Latest version](https://img.shields.io/crates/v/cqrs-es2)](https://crates.io/crates/cqrs-es2)
-[![docs](https://img.shields.io/badge/API-docs-blue.svg)](https://docs.rs/cqrs-es2)
-![License](https://img.shields.io/crates/l/cqrs-es2.svg)
+[![Publish](https://github.com/brgirgis/tokio-cqrs-es2-store/actions/workflows/crates-io.yml/badge.svg)](https://github.com/brgirgis/tokio-cqrs-es2-store/actions/workflows/crates-io.yml)
+[![Test](https://github.com/brgirgis/tokio-cqrs-es2-store/actions/workflows/rust-ci.yml/badge.svg)](https://github.com/brgirgis/tokio-cqrs-es2-store/actions/workflows/rust-ci.yml)
+[![Latest version](https://img.shields.io/crates/v/tokio-cqrs-es2-store)](https://crates.io/crates/tokio-cqrs-es2-store)
+[![docs](https://img.shields.io/badge/API-docs-blue.svg)](https://docs.rs/tokio-cqrs-es2-store)
+![License](https://img.shields.io/crates/l/tokio-cqrs-es2-store.svg)
 
 ---
 
-## Installation
+Provides async interfaces to different database implementations for the CQRS system store.
+
+# Design
+
+The main components of this library are:
+
+- `IEventDispatcher` - an interface for async events listeners
+- `IEventStore` - an interface for async event stores
+- `IQueryStore` - an interface for async query stores
+
+# Features
+
+- `with-sqlx-postgres` - async Postgres store
+- `with-sqlx-mysql` - async MySQL store
+- `with-sqlx-mariadb` - async MariaDB store
+- `with-sqlx-sqlite` - async SQLite store
+- `with-all-sqlx` - all sqlx drivers
+- `with-all-async` - all async drivers (default)
+
+# Installation
+
+To use this library in an async application, add the following to
+your dependency section in the project's `Cargo.toml`:
 
 ```toml
 [dependencies]
-cqrs-es2 = "*"
+# logging
+log = { version = "^0.4", features = [
+  "max_level_debug",
+  "release_max_level_warn",
+] }
+fern = "^0.5"
+
+# serialization
 serde = { version = "^1.0.127", features = ["derive"] }
 serde_json = "^1.0.66"
+
+async-trait = "^0.1"
+
+# CQRS framework
+cqrs-es2 = { version = "*"}
+
+# Sync postgres store implementation
+tokio-cqrs-es2-store = { version = "*", default-features = false, features = [
+  "with-sqlx-postgres",
+] }
+
+# sqlx
+sqlx = { version = "0.5.6", features = [
+  # tokio + rustls
+  "runtime-tokio-rustls",
+  # PostgresSQL
+  "postgres",
+  "uuid",
+  "json",
+  # misc
+  "macros",
+  "chrono",
+  "tls",
+] }
+
+tokio = { version = "1", features = [
+  "rt-multi-thread",
+  "time",
+  "fs",
+  "macros",
+  "net",
+] }
 ```
 
-## Features
+# Usage
 
-| Feature              | Comment                                         |
-| -------------------- | ----------------------------------------------- |
-| `default`            | Build will only contain the async memory stores |
-| `with-sqlx-postgres` |                                                 |
-| `with-sqlx-mysql`    |                                                 |
-| `with-sqlx-mariadb`  |                                                 |
-| `with-sqlx-sqlite`   |                                                 |
-| `with-all-sqlx`      |                                                 |
-| `with-all-async`     |                                                 |
-
-## Usage
-
-Full fledged demo applications:
-
-- [RESTful](https://github.com/brgirgis/cqrs-restful-demo)
-- [gRPC](https://github.com/brgirgis/cqrs-grpc-demo)
+A full async store example application is available [here](https://github.com/brgirgis/tokio-cqrs-es2-store/tree/master/examples/grpc).
 
 ## Change Log
 
-A complete history of the change log can be found [here](https://github.com/brgirgis/cqrs-es2/blob/master/ChangeLog.md)
+A complete history of the change log can be found [here](https://github.com/brgirgis/tokio-cqrs-es2-store/blob/master/ChangeLog.md)
 
 ## TODO
 
-An up-to-date list of development aspirations can be found [here](https://github.com/brgirgis/cqrs-es2/blob/master/TODO.md)
+An up-to-date list of development aspirations can be found [here](https://github.com/brgirgis/tokio-cqrs-es2-store/blob/master/TODO.md)

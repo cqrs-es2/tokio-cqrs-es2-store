@@ -28,7 +28,7 @@
 //! - `with-all-sqlx` - all sqlx drivers
 //! - `with-all-async` - all async drivers (default)
 //!
-//! # Usage
+//! # Installation
 //!
 //! To use this library in an async application, add the following to
 //! your dependency section in the project's `Cargo.toml`:
@@ -79,9 +79,9 @@
 //! ] }
 //! ```
 //!
-//! # Example
+//! # Usage
 //!
-//! A full async store example application is available [here](https://github.com/brgirgis/cqrs-es2/tree/master/examples/grpc).
+//! A full async store example application is available [here](https://github.com/brgirgis/tokio-cqrs-es2-store/tree/master/examples/grpc).
 
 pub use repository::*;
 
