@@ -1,4 +1,4 @@
-use sqlx::postgres::PgPoolOptions;
+use sqlx::sqlite::SqlitePoolOptions;
 
 use cqrs_es2::{
     example_impl::*,
@@ -7,16 +7,16 @@ use cqrs_es2::{
 };
 
 use crate::{
-    postgres_store::{
-        PostgresQueryStore,
+    repository::IQueryStore,
+    sqlite_store::{
+        SqliteQueryStore,
         Storage,
     },
-    repository::IQueryStore,
 };
 
 use super::common::*;
 
-type ThisQueryStore = PostgresQueryStore<
+type ThisQueryStore = SqliteQueryStore<
     CustomerCommand,
     CustomerEvent,
     Customer,
@@ -30,7 +30,7 @@ type ThisQueryContext = QueryContext<
 >;
 
 async fn commit_and_load_queries() -> Result<(), Error> {
-    let pool = PgPoolOptions::new()
+    let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect(CONNECTION_STRING)
         .await

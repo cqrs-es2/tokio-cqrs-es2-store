@@ -1,4 +1,4 @@
-//! Postgres store
+//! SQLite store
 
 pub use storage::*;
 

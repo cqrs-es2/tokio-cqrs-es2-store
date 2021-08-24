@@ -7,3 +7,5 @@
   - Postgres
   - MySQL/MariaDB
   - SQLite
+  - MongoDB
+  - Redis

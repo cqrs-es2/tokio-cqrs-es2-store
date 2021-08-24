@@ -4,8 +4,6 @@ use std::{
     marker::PhantomData,
 };
 
-use sqlx::postgres::PgPool;
-
 use cqrs_es2::{
     AggregateContext,
     Error,
@@ -17,36 +15,30 @@ use cqrs_es2::{
 
 use crate::repository::IEventStore;
 
-use super::constants::{
-    INSERT_EVENT,
-    INSERT_SNAPSHOT,
-    SELECT_EVENTS,
-    SELECT_EVENTS_WITH_METADATA,
-    SELECT_SNAPSHOT,
-    UPDATE_SNAPSHOT,
-};
+use super::i_storage::IStorage;
 
-/// Storage engine using an Postgres backing and relying on a
-/// serialization of the aggregate rather than individual events. This
-/// is similar to the "snapshot strategy" seen in many CQRS
-/// frameworks.
-pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
-    pool: PgPool,
+/// Async event store.
+pub struct EventStore<
+    C: ICommand,
+    E: IEvent,
+    A: IAggregate<C, E>,
+    S: IStorage,
+> {
+    storage: S,
     with_snapshots: bool,
     _phantom: PhantomData<(C, E, A)>,
 }
 
-impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
-    EventStore<C, E, A>
+impl<C: ICommand, E: IEvent, A: IAggregate<C, E>, S: IStorage>
+    EventStore<C, E, A, S>
 {
-    /// Creates a new `EventStore` from the provided
-    /// database connection.
+    /// constructor.
     pub fn new(
-        pool: PgPool,
+        storage: S,
         with_snapshots: bool,
     ) -> Self {
-        EventStore {
-            pool,
+        Self {
+            storage,
             with_snapshots,
             _phantom: PhantomData,
         }
@@ -59,25 +51,10 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
         let agg_type = A::aggregate_type();
         let id = aggregate_id.to_string();
 
-        let rows: Vec<(i64, serde_json::Value)> =
-            match sqlx::query_as(SELECT_SNAPSHOT)
-                .bind(&agg_type)
-                .bind(&id)
-                .fetch_all(&self.pool)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => {
-                    return Err(Error::new(
-                        format!(
-                            "could not load events table for \
-                             aggregate id {} with error: {}",
-                            &id, e
-                        )
-                        .as_str(),
-                    ))
-                },
-            };
+        let rows = self
+            .storage
+            .select_snapshot(&agg_type, &id)
+            .await?;
 
         if rows.len() == 0 {
             return Ok(AggregateContext::new(
@@ -116,12 +93,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
     ) -> Result<AggregateContext<C, E, A>, Error> {
         let id = aggregate_id.to_string();
 
-        let events = match self.load_events(&id, false).await {
-            Ok(x) => x,
-            Err(e) => {
-                return Err(e);
-            },
-        };
+        let events = self.load_events(&id, false).await?;
 
         if events.len() == 0 {
             return Ok(AggregateContext::new(
@@ -199,38 +171,15 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                     },
                 };
 
-            match sqlx::query(INSERT_EVENT)
-                .bind(&agg_type)
-                .bind(&aggregate_id)
-                .bind(sequence)
-                .bind(&payload)
-                .bind(&metadata)
-                .execute(&self.pool)
-                .await
-            {
-                Ok(x) => {
-                    if x.rows_affected() != 1 {
-                        return Err(Error::new(
-                            format!(
-                                "insert new events failed for \
-                                 aggregate id {}",
-                                &aggregate_id
-                            )
-                            .as_str(),
-                        ));
-                    }
-                },
-                Err(e) => {
-                    return Err(Error::new(
-                        format!(
-                            "could not insert new events for \
-                             aggregate id {} with error: {}",
-                            &aggregate_id, e
-                        )
-                        .as_str(),
-                    ));
-                },
-            };
+            self.storage
+                .insert_event(
+                    &agg_type,
+                    &aggregate_id,
+                    sequence,
+                    &payload,
+                    &metadata,
+                )
+                .await?;
 
             updated_aggregate.apply(&context.payload);
         }
@@ -250,42 +199,15 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                 },
             };
 
-        let sql = match context.current_sequence {
-            0 => INSERT_SNAPSHOT,
-            _ => UPDATE_SNAPSHOT,
-        };
-
-        match sqlx::query(sql)
-            .bind(last_sequence)
-            .bind(aggregate_payload)
-            .bind(&agg_type)
-            .bind(&aggregate_id)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(x) => {
-                if x.rows_affected() != 1 {
-                    return Err(Error::new(
-                        format!(
-                            "insert new snapshot failed for \
-                             aggregate id {}",
-                            &aggregate_id
-                        )
-                        .as_str(),
-                    ));
-                }
-            },
-            Err(e) => {
-                return Err(Error::new(
-                    format!(
-                        "could not insert new snapshot for \
-                         aggregate id {} with error: {}",
-                        &aggregate_id, e
-                    )
-                    .as_str(),
-                ));
-            },
-        };
+        self.storage
+            .update_snapshot(
+                &agg_type,
+                &aggregate_id,
+                last_sequence,
+                &aggregate_payload,
+                context.current_sequence,
+            )
+            .await?;
 
         Ok(contexts)
     }
@@ -341,38 +263,15 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                     },
                 };
 
-            match sqlx::query(INSERT_EVENT)
-                .bind(&agg_type)
-                .bind(&aggregate_id)
-                .bind(sequence)
-                .bind(&payload)
-                .bind(&metadata)
-                .execute(&self.pool)
-                .await
-            {
-                Ok(x) => {
-                    if x.rows_affected() != 1 {
-                        return Err(Error::new(
-                            format!(
-                                "insert new events failed for \
-                                 aggregate id {}",
-                                &aggregate_id
-                            )
-                            .as_str(),
-                        ));
-                    }
-                },
-                Err(e) => {
-                    return Err(Error::new(
-                        format!(
-                            "could not insert new events for \
-                             aggregate id {} with error: {}",
-                            &aggregate_id, e
-                        )
-                        .as_str(),
-                    ));
-                },
-            };
+            self.storage
+                .insert_event(
+                    &agg_type,
+                    &aggregate_id,
+                    sequence,
+                    &payload,
+                    &metadata,
+                )
+                .await?;
         }
 
         Ok(contexts)
@@ -384,25 +283,10 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
     ) -> Result<Vec<EventContext<C, E>>, Error> {
         let agg_type = A::aggregate_type();
 
-        let rows: Vec<(i64, serde_json::Value)> =
-            match sqlx::query_as(SELECT_EVENTS)
-                .bind(&agg_type)
-                .bind(&aggregate_id)
-                .fetch_all(&self.pool)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => {
-                    return Err(Error::new(
-                        format!(
-                            "could not load events table for \
-                             aggregate id {} with error: {}",
-                            &aggregate_id, e
-                        )
-                        .as_str(),
-                    ));
-                },
-            };
+        let rows = self
+            .storage
+            .select_events_only(agg_type, aggregate_id)
+            .await?;
 
         let mut result = Vec::new();
 
@@ -438,28 +322,10 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
     ) -> Result<Vec<EventContext<C, E>>, Error> {
         let agg_type = A::aggregate_type();
 
-        let rows: Vec<(
-            i64,
-            serde_json::Value,
-            serde_json::Value,
-        )> = match sqlx::query_as(SELECT_EVENTS_WITH_METADATA)
-            .bind(&agg_type)
-            .bind(&aggregate_id)
-            .fetch_all(&self.pool)
-            .await
-        {
-            Ok(x) => x,
-            Err(e) => {
-                return Err(Error::new(
-                    format!(
-                        "could not load events table for aggregate \
-                         id {} with error: {}",
-                        &aggregate_id, e
-                    )
-                    .as_str(),
-                ));
-            },
-        };
+        let rows = self
+            .storage
+            .select_events_with_metadata(agg_type, aggregate_id)
+            .await?;
 
         let mut result = Vec::new();
 
@@ -505,8 +371,8 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
 }
 
 #[async_trait]
-impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
-    for EventStore<C, E, A>
+impl<C: ICommand, E: IEvent, A: IAggregate<C, E>, S: IStorage>
+    IEventStore<C, E, A> for EventStore<C, E, A, S>
 {
     async fn load_events(
         &mut self,

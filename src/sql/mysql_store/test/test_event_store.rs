@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sqlx::postgres::PgPoolOptions;
+use sqlx::mysql::MySqlPoolOptions;
 
 use cqrs_es2::{
     example_impl::*,
@@ -10,8 +10,8 @@ use cqrs_es2::{
 };
 
 use crate::{
-    postgres_store::{
-        PostgresEventStore,
+    mysql_store::{
+        MySqlEventStore,
         Storage,
     },
     repository::IEventStore,
@@ -20,7 +20,7 @@ use crate::{
 use super::common::*;
 
 type ThisEventStore =
-    PostgresEventStore<CustomerCommand, CustomerEvent, Customer>;
+    MySqlEventStore<CustomerCommand, CustomerEvent, Customer>;
 
 type ThisAggregateContext =
     AggregateContext<CustomerCommand, CustomerEvent, Customer>;
@@ -35,11 +35,12 @@ pub fn metadata() -> HashMap<String, String> {
 }
 
 async fn commit_and_load_events(
-    with_snapshots: bool
+    uri: &str,
+    with_snapshots: bool,
 ) -> Result<(), Error> {
-    let pool = PgPoolOptions::new()
+    let pool = MySqlPoolOptions::new()
         .max_connections(5)
-        .connect(CONNECTION_STRING)
+        .connect(uri)
         .await
         .unwrap();
 
@@ -200,11 +201,37 @@ async fn commit_and_load_events(
 }
 
 #[test]
-fn test_with_snapshots() {
-    tokio_test::block_on(commit_and_load_events(true)).unwrap();
+fn test_mariadb_with_snapshots() {
+    tokio_test::block_on(commit_and_load_events(
+        CONNECTION_STRING_MARIADB,
+        true,
+    ))
+    .unwrap();
 }
 
 #[test]
-fn test_no_snapshots() {
-    tokio_test::block_on(commit_and_load_events(false)).unwrap();
+fn test_mysql_with_snapshots() {
+    tokio_test::block_on(commit_and_load_events(
+        CONNECTION_STRING_MYSQL,
+        true,
+    ))
+    .unwrap();
+}
+
+#[test]
+fn test_mariadb_no_snapshots() {
+    tokio_test::block_on(commit_and_load_events(
+        CONNECTION_STRING_MARIADB,
+        false,
+    ))
+    .unwrap();
+}
+
+#[test]
+fn test_mysql_no_snapshots() {
+    tokio_test::block_on(commit_and_load_events(
+        CONNECTION_STRING_MYSQL,
+        false,
+    ))
+    .unwrap();
 }

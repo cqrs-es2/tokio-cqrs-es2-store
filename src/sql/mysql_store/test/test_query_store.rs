@@ -1,4 +1,4 @@
-use sqlx::postgres::PgPoolOptions;
+use sqlx::mysql::MySqlPoolOptions;
 
 use cqrs_es2::{
     example_impl::*,
@@ -7,8 +7,8 @@ use cqrs_es2::{
 };
 
 use crate::{
-    postgres_store::{
-        PostgresQueryStore,
+    mysql_store::{
+        MySqlQueryStore,
         Storage,
     },
     repository::IQueryStore,
@@ -16,7 +16,7 @@ use crate::{
 
 use super::common::*;
 
-type ThisQueryStore = PostgresQueryStore<
+type ThisQueryStore = MySqlQueryStore<
     CustomerCommand,
     CustomerEvent,
     Customer,
@@ -29,10 +29,10 @@ type ThisQueryContext = QueryContext<
     CustomerContactQuery,
 >;
 
-async fn commit_and_load_queries() -> Result<(), Error> {
-    let pool = PgPoolOptions::new()
+async fn commit_and_load_queries(uri: &str) -> Result<(), Error> {
+    let pool = MySqlPoolOptions::new()
         .max_connections(5)
-        .connect(CONNECTION_STRING)
+        .connect(uri)
         .await
         .unwrap();
 
@@ -79,6 +79,17 @@ async fn commit_and_load_queries() -> Result<(), Error> {
 }
 
 #[test]
-fn test_commit_and_load_queries() {
-    tokio_test::block_on(commit_and_load_queries()).unwrap();
+fn test_mariadb_commit_and_load_queries() {
+    tokio_test::block_on(commit_and_load_queries(
+        CONNECTION_STRING_MARIADB,
+    ))
+    .unwrap();
+}
+
+#[test]
+fn test_mysql_commit_and_load_queries() {
+    tokio_test::block_on(commit_and_load_queries(
+        CONNECTION_STRING_MYSQL,
+    ))
+    .unwrap();
 }

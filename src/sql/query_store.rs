@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use std::marker::PhantomData;
 
-use sqlx::postgres::PgPool;
-
 use cqrs_es2::{
     Error,
     EventContext,
@@ -18,21 +16,17 @@ use crate::repository::{
     IQueryStore,
 };
 
-use super::constants::{
-    INSERT_QUERY,
-    SELECT_QUERY,
-    UPDATE_QUERY,
-};
+use super::i_storage::IStorage;
 
-/// This provides a simple query repository that can be used both to
-/// return deserialized views and to act as a query processor.
+/// Async query store.
 pub struct QueryStore<
     C: ICommand,
     E: IEvent,
     A: IAggregate<C, E>,
     Q: IQuery<C, E>,
+    S: IStorage,
 > {
-    pool: PgPool,
+    storage: S,
     _phantom: PhantomData<(C, E, A, Q)>,
 }
 
@@ -41,16 +35,14 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-    > QueryStore<C, E, A, Q>
+        S: IStorage,
+    > QueryStore<C, E, A, Q, S>
 {
-    /// Creates a new `QueryStore` that will store its'
-    /// views in the table named identically to the `query_name`
-    /// value provided. This table should be created by the user
-    /// previously (see `/db/init.sql`).
+    /// constructor.
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
-        QueryStore {
-            pool,
+    pub fn new(storage: S) -> Self {
+        Self {
+            storage,
             _phantom: PhantomData,
         }
     }
@@ -62,7 +54,8 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-    > IQueryStore<C, E, A, Q> for QueryStore<C, E, A, Q>
+        S: IStorage,
+    > IQueryStore<C, E, A, Q> for QueryStore<C, E, A, Q, S>
 {
     async fn load(
         &mut self,
@@ -71,19 +64,10 @@ impl<
         let agg_type = A::aggregate_type();
         let query_type = Q::query_type();
 
-        let rows: Vec<(i64, serde_json::Value)> =
-            match sqlx::query_as(SELECT_QUERY)
-                .bind(&agg_type)
-                .bind(&aggregate_id)
-                .bind(&query_type)
-                .fetch_all(&self.pool)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => {
-                    return Err(Error::new(e.to_string().as_str()));
-                },
-            };
+        let rows = self
+            .storage
+            .select_query(agg_type, aggregate_id, query_type)
+            .await?;
 
         if rows.len() == 0 {
             return Ok(QueryContext::new(
@@ -118,11 +102,6 @@ impl<
         let query_type = Q::query_type();
         let version = context.version;
 
-        let sql = match version {
-            1 => INSERT_QUERY,
-            _ => UPDATE_QUERY,
-        };
-
         // let query_instance_id = &self.query_instance_id;
         let payload = match serde_json::to_value(&context.payload) {
             Ok(x) => x,
@@ -138,20 +117,17 @@ impl<
             },
         };
 
-        match sqlx::query(sql)
-            .bind(version)
-            .bind(&payload)
-            .bind(&agg_type)
-            .bind(&aggregate_id)
-            .bind(&query_type)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                return Err(Error::new(e.to_string().as_str()));
-            },
-        }
+        self.storage
+            .update_query(
+                agg_type,
+                aggregate_id,
+                query_type,
+                version,
+                &payload,
+            )
+            .await?;
+
+        Ok(())
     }
 }
 
@@ -161,7 +137,8 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-    > IEventDispatcher<C, E> for QueryStore<C, E, A, Q>
+        S: IStorage,
+    > IEventDispatcher<C, E> for QueryStore<C, E, A, Q, S>
 {
     async fn dispatch(
         &mut self,

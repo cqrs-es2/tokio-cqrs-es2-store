@@ -1,4 +1,4 @@
-//! Postgres store
+//! MySql/MariaDB store
 
 pub use storage::*;
 

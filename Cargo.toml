@@ -21,13 +21,11 @@ with-sqlx-postgres = [
   "sqlx/json",
 ]
 with-sqlx-mysql = ["tokio", "sqlx", "sqlx/mysql"]
-with-sqlx-mariadb = ["tokio", "sqlx", "sqlx/mysql"]
 #with-sqlx-mssql = ["tokio", "sqlx", "sqlx/mssql"]
 with-sqlx-sqlite = ["tokio", "sqlx", "sqlx/sqlite"]
 with-all-sqlx = [
   "with-sqlx-postgres",
   "with-sqlx-mysql",
-  "with-sqlx-mariadb",
   #"with-sqlx-mssql",
   "with-sqlx-sqlite",
 ]

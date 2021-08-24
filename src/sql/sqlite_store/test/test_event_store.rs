@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use sqlx::postgres::PgPoolOptions;
+use sqlx::sqlite::{
+    SqliteConnectOptions,
+    SqlitePoolOptions,
+};
 
 use cqrs_es2::{
     example_impl::*,
@@ -10,17 +13,17 @@ use cqrs_es2::{
 };
 
 use crate::{
-    postgres_store::{
-        PostgresEventStore,
+    repository::IEventStore,
+    sqlite_store::{
+        SqliteEventStore,
         Storage,
     },
-    repository::IEventStore,
 };
 
 use super::common::*;
 
 type ThisEventStore =
-    PostgresEventStore<CustomerCommand, CustomerEvent, Customer>;
+    SqliteEventStore<CustomerCommand, CustomerEvent, Customer>;
 
 type ThisAggregateContext =
     AggregateContext<CustomerCommand, CustomerEvent, Customer>;
@@ -37,9 +40,14 @@ pub fn metadata() -> HashMap<String, String> {
 async fn commit_and_load_events(
     with_snapshots: bool
 ) -> Result<(), Error> {
-    let pool = PgPoolOptions::new()
+    // "sqlite://demo.db"
+    let options = SqliteConnectOptions::new()
+        .filename(DB_NAME)
+        .create_if_missing(true);
+
+    let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect(CONNECTION_STRING)
+        .connect_with(options)
         .await
         .unwrap();
 

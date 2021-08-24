@@ -86,7 +86,6 @@
 pub use repository::*;
 
 #[cfg(any(
-  feature = "with-sqlx-mariadb",
   //feature = "with-sqlx-mssql",
   feature = "with-sqlx-mysql",
   feature = "with-sqlx-postgres",
@@ -98,7 +97,6 @@ pub mod memory_store;
 mod repository;
 
 #[cfg(any(
-    feature = "with-sqlx-mariadb",
     //feature = "with-sqlx-mssql",
     feature = "with-sqlx-mysql",
     feature = "with-sqlx-postgres",
