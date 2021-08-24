@@ -9,7 +9,7 @@ description = "Async implementation of the cqrs-es2 store."
 readme = "README.md"
 documentation = "https://docs.rs/tokio-cqrs-es2-store"
 repository = "https://github.com/brgirgis/tokio-cqrs-es2-store"
-keywords = ["cqrs", "event-sourcing", "es", "DDD", "command", "query", "async"]
+keywords = ["cqrs", "event-sourcing", "es", "DDD"]
 
 [features]
 default = ["with-all-async"]
@@ -44,7 +44,7 @@ serde_json = "^1.0.66"
 async-trait = "^0.1"
 
 # CQRS framework
-cqrs-es2 = { version = "0.8.0", path = "../cqrs-es2" }
+cqrs-es2 = { version = "0.8.0" }
 
 # sqlx
 sqlx = { version = "0.5.6", features = [
