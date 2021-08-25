@@ -1,3 +1,5 @@
+use log::info;
+
 use async_trait::async_trait;
 
 use sqlx::sqlite::SqlitePool;
@@ -11,6 +13,46 @@ use super::super::{
     query_store::QueryStore,
 };
 
+static CREATE_EVENTS_TABLE: &str = "
+CREATE TABLE IF NOT EXISTS
+events
+    (
+        aggregate_type TEXT                         NOT NULL,
+        aggregate_id   TEXT                         NOT NULL,
+        sequence       bigint CHECK (sequence >= 0) NOT NULL,
+        payload        TEXT                         NOT NULL,
+        metadata       TEXT                         NOT NULL,
+        timestamp      timestamp DEFAULT (CURRENT_TIMESTAMP),
+        PRIMARY KEY (aggregate_type, aggregate_id, sequence)
+    );
+";
+
+static CREATE_SNAPSHOT_TABLE: &str = "
+CREATE TABLE IF NOT EXISTS
+snapshots
+(
+    aggregate_type TEXT                              NOT NULL,
+    aggregate_id   TEXT                              NOT NULL,
+    last_sequence  bigint CHECK (last_sequence >= 0) NOT NULL,
+    payload        TEXT                              NOT NULL,
+    timestamp      timestamp DEFAULT (CURRENT_TIMESTAMP),
+    PRIMARY KEY (aggregate_type, aggregate_id, last_sequence)
+);
+";
+
+static CREATE_QUERY_TABLE: &str = "
+CREATE TABLE IF NOT EXISTS
+queries
+(
+    aggregate_type TEXT                        NOT NULL,
+    aggregate_id   TEXT                        NOT NULL,
+    query_type     TEXT                        NOT NULL,
+    version        bigint CHECK (version >= 0) NOT NULL,
+    payload        TEXT                        NOT NULL,
+    PRIMARY KEY (aggregate_type, aggregate_id, query_type)
+);
+";
+
 /// SQLite storage
 pub struct Storage {
     pool: SqlitePool,
@@ -20,6 +62,57 @@ impl Storage {
     /// constructor
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
+    }
+
+    async fn create_events_table(&mut self) -> Result<(), Error> {
+        let res = match sqlx::query(CREATE_EVENTS_TABLE)
+            .execute(&self.pool)
+            .await
+        {
+            Ok(x) => x,
+            Err(e) => return Err(Error::new(e.to_string().as_str())),
+        };
+
+        info!(
+            "Created events table with '{}' affected rows",
+            res.rows_affected()
+        );
+
+        Ok(())
+    }
+
+    async fn create_query_table(&mut self) -> Result<(), Error> {
+        let res = match sqlx::query(CREATE_QUERY_TABLE)
+            .execute(&self.pool)
+            .await
+        {
+            Ok(x) => x,
+            Err(e) => return Err(Error::new(e.to_string().as_str())),
+        };
+
+        info!(
+            "Created queries table with '{}' affected rows",
+            res.rows_affected()
+        );
+
+        Ok(())
+    }
+
+    async fn create_snapshot_table(&mut self) -> Result<(), Error> {
+        let res = match sqlx::query(CREATE_SNAPSHOT_TABLE)
+            .execute(&self.pool)
+            .await
+        {
+            Ok(x) => x,
+            Err(e) => return Err(Error::new(e.to_string().as_str())),
+        };
+
+        info!(
+            "Created snapshots table with '{}' affected rows",
+            res.rows_affected()
+        );
+
+        Ok(())
     }
 }
 
@@ -33,6 +126,8 @@ impl IStorage for Storage {
         payload: &serde_json::Value,
         metadata: &serde_json::Value,
     ) -> Result<(), Error> {
+        self.create_events_table().await?;
+
         match sqlx::query(INSERT_EVENT)
             .bind(&agg_type)
             .bind(&agg_id)
@@ -74,6 +169,8 @@ impl IStorage for Storage {
         agg_type: &str,
         agg_id: &str,
     ) -> Result<Vec<(i64, serde_json::Value)>, Error> {
+        self.create_events_table().await?;
+
         let rows: Vec<(i64, serde_json::Value)> =
             match sqlx::query_as(SELECT_EVENTS)
                 .bind(&agg_type)
@@ -109,6 +206,8 @@ impl IStorage for Storage {
         )>,
         Error,
     > {
+        self.create_events_table().await?;
+
         let rows: Vec<(
             i64,
             serde_json::Value,
@@ -143,6 +242,8 @@ impl IStorage for Storage {
         payload: &serde_json::Value,
         current_sequence: usize,
     ) -> Result<(), Error> {
+        self.create_snapshot_table().await?;
+
         let sql = match current_sequence {
             0 => INSERT_SNAPSHOT,
             _ => UPDATE_SNAPSHOT,
@@ -188,6 +289,8 @@ impl IStorage for Storage {
         agg_type: &str,
         agg_id: &str,
     ) -> Result<Vec<(i64, serde_json::Value)>, Error> {
+        self.create_snapshot_table().await?;
+
         let rows: Vec<(i64, serde_json::Value)> =
             match sqlx::query_as(SELECT_SNAPSHOT)
                 .bind(&agg_type)
@@ -219,6 +322,8 @@ impl IStorage for Storage {
         version: i64,
         payload: &serde_json::Value,
     ) -> Result<(), Error> {
+        self.create_query_table().await?;
+
         let sql = match version {
             1 => INSERT_QUERY,
             _ => UPDATE_QUERY,
@@ -246,6 +351,8 @@ impl IStorage for Storage {
         agg_id: &str,
         query_type: &str,
     ) -> Result<Vec<(i64, serde_json::Value)>, Error> {
+        self.create_query_table().await?;
+
         let rows: Vec<(i64, serde_json::Value)> =
             match sqlx::query_as(SELECT_QUERY)
                 .bind(&agg_type)
