@@ -19,7 +19,7 @@ Clone this repository
 Start the docker stack and enter the project folder:
 
     docker-compose up -d
-    cd examples/grpc
+    cd examples/examples/postgres
 
 Start the application
 

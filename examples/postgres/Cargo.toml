@@ -1,5 +1,5 @@
 [package]
-name = "cqrs-grpc-demo"
+name = "cqrs-grpc-postgres-demo"
 version = "0.1.0"
 edition = "2018"
 authors = ["Bassem Girgis <bgirgis@pm.me>"]

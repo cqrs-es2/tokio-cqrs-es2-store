@@ -15,12 +15,5 @@ build:
 test:
 	cargo test
 
-up:
-	docker-compose up -d
-	rm -rf demo.db*
-
-down:
-	docker-compose down
-
 run:
 	cargo run --bin server

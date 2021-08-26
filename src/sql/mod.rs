@@ -1,4 +1,10 @@
+#[cfg(any(
+    feature = "with-sqlx-mysql",
+    feature = "with-sqlx-sqlite"
+))]
 mod mysql_constants;
+
+#[cfg(feature = "with-sqlx-postgres")]
 mod postgres_constants;
 
 //#[cfg(feature = "with-sqlx-mssql")]
