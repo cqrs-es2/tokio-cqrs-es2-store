@@ -1,4 +1,7 @@
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::sqlite::{
+    SqliteConnectOptions,
+    SqlitePoolOptions,
+};
 
 use cqrs_es2::{
     example_impl::*,
@@ -30,9 +33,13 @@ type ThisQueryContext = QueryContext<
 >;
 
 async fn commit_and_load_queries() -> Result<(), Error> {
+    let options = SqliteConnectOptions::new()
+        .filename(DB_NAME)
+        .create_if_missing(true);
+
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .connect(CONNECTION_STRING)
+        .connect_with(options)
         .await
         .unwrap();
 

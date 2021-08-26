@@ -82,10 +82,9 @@ tokio = { version = "1", features = [
 
 # Usage
 
-Full async store example applications using `gRPC`:
+Full async store example applications:
 
-- [postgres](https://github.com/brgirgis/tokio-cqrs-es2-store/tree/master/examples/postgres).
-- [mongodb](https://github.com/brgirgis/tokio-cqrs-es2-store/tree/master/examples/mongodb).
+- [gRPC](https://github.com/brgirgis/tokio-cqrs-es2-store/tree/master/examples/grpc).
 
 ## Change Log
 
