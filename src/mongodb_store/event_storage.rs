@@ -1,5 +1,10 @@
 use async_trait::async_trait;
 use futures::stream::TryStreamExt;
+use std::{
+    collections::HashMap,
+    marker::PhantomData,
+};
+
 use mongodb::{
     bson::{
         doc,
@@ -8,10 +13,6 @@ use mongodb::{
     options::FindOptions,
     Collection,
     Database,
-};
-use std::{
-    collections::HashMap,
-    marker::PhantomData,
 };
 
 use cqrs_es2::{
@@ -78,7 +79,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "Could not serialize the event payload for \
+                        "unable to serialize the event payload for \
                          aggregate id {} with error: {}",
                         &agg_id, e
                     )
@@ -106,8 +107,11 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                     Bson::ObjectId(id) => {
                         if id.to_string().is_empty() {
                             return Err(Error::new(
-                                format!("Empty document id",)
-                                    .as_str(),
+                                format!(
+                                    "insert event got empty \
+                                     document id",
+                                )
+                                .as_str(),
                             ));
                         }
                     },

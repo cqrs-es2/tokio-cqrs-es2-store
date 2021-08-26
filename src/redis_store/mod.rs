@@ -1,9 +1,10 @@
 //!
 //! Redis store
 
-pub use event_store::EventStore;
-pub use query_store::QueryStore;
+pub use event_storage::*;
+pub use query_storage::*;
 
-mod event_store;
-mod query_store;
+mod event_storage;
+mod query_storage;
+
 mod test;

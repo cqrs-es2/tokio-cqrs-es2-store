@@ -55,7 +55,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "Could not serialize the event payload for \
+                        "unable to serialize the event payload for \
                          aggregate id {} with error: {}",
                         &agg_id, e
                     )

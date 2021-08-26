@@ -109,5 +109,5 @@ mod sql;
 #[cfg(feature = "with-mongodb")]
 pub mod mongodb_store;
 
-//#[cfg(feature = "with-redis")]
-//pub mod redis_store;
+#[cfg(feature = "with-redis")]
+pub mod redis_store;
