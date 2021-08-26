@@ -16,7 +16,7 @@ use crate::repository::{
     IQueryStore,
 };
 
-use super::i_storage::IStorage;
+use super::i_query_storage::IQueryStorage;
 
 /// Async query store.
 pub struct QueryStore<
@@ -24,7 +24,7 @@ pub struct QueryStore<
     E: IEvent,
     A: IAggregate<C, E>,
     Q: IQuery<C, E>,
-    S: IStorage,
+    S: IQueryStorage<C, E, A, Q>,
 > {
     storage: S,
     _phantom: PhantomData<(C, E, A, Q)>,
@@ -35,10 +35,10 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-        S: IStorage,
+        S: IQueryStorage<C, E, A, Q>,
     > QueryStore<C, E, A, Q, S>
 {
-    /// constructor.
+    /// constructor
     #[must_use]
     pub fn new(storage: S) -> Self {
         Self {
@@ -54,7 +54,7 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-        S: IStorage,
+        S: IQueryStorage<C, E, A, Q>,
     > IQueryStore<C, E, A, Q> for QueryStore<C, E, A, Q, S>
 {
     async fn load(
@@ -64,33 +64,27 @@ impl<
         let agg_type = A::aggregate_type();
         let query_type = Q::query_type();
 
-        let rows = self
+        let row = self
             .storage
             .select_query(agg_type, aggregate_id, query_type)
             .await?;
 
-        if rows.len() == 0 {
-            return Ok(QueryContext::new(
-                aggregate_id.to_string(),
-                0,
-                Default::default(),
-            ));
-        }
-
-        let row = rows[0].clone();
-
-        let payload = match serde_json::from_value(row.1) {
-            Ok(x) => x,
-            Err(e) => {
-                return Err(Error::new(e.to_string().as_str()));
+        match row {
+            None => {
+                Ok(QueryContext::new(
+                    aggregate_id.to_string(),
+                    0,
+                    Default::default(),
+                ))
             },
-        };
-
-        Ok(QueryContext::new(
-            aggregate_id.to_string(),
-            row.0,
-            payload,
-        ))
+            Some(x) => {
+                Ok(QueryContext::new(
+                    aggregate_id.to_string(),
+                    x.0,
+                    x.1,
+                ))
+            },
+        }
     }
 
     async fn commit(
@@ -102,28 +96,13 @@ impl<
         let query_type = Q::query_type();
         let version = context.version;
 
-        // let query_instance_id = &self.query_instance_id;
-        let payload = match serde_json::to_value(&context.payload) {
-            Ok(x) => x,
-            Err(e) => {
-                return Err(Error::new(
-                    format!(
-                        "unable to serialize the payload of query \
-                         '{}' with id: '{}', error: {}",
-                        &query_type, &aggregate_id, e,
-                    )
-                    .as_str(),
-                ));
-            },
-        };
-
         self.storage
             .update_query(
                 agg_type,
                 aggregate_id,
                 query_type,
                 version,
-                &payload,
+                &context.payload,
             )
             .await?;
 
@@ -137,7 +116,7 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-        S: IStorage,
+        S: IQueryStorage<C, E, A, Q>,
     > IEventDispatcher<C, E> for QueryStore<C, E, A, Q, S>
 {
     async fn dispatch(

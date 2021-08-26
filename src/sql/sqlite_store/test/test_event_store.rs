@@ -15,8 +15,8 @@ use cqrs_es2::{
 use crate::{
     repository::IEventStore,
     sqlite_store::{
+        EventStorage,
         SqliteEventStore,
-        Storage,
     },
 };
 
@@ -51,7 +51,7 @@ async fn commit_and_load_events(
         .await
         .unwrap();
 
-    let storage = Storage::new(pool);
+    let storage = EventStorage::new(pool);
 
     let mut store = ThisEventStore::new(storage, with_snapshots);
 

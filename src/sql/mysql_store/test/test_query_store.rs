@@ -9,7 +9,7 @@ use cqrs_es2::{
 use crate::{
     mysql_store::{
         MySqlQueryStore,
-        Storage,
+        QueryStorage,
     },
     repository::IQueryStore,
 };
@@ -36,7 +36,7 @@ async fn commit_and_load_queries(uri: &str) -> Result<(), Error> {
         .await
         .unwrap();
 
-    let storage = Storage::new(pool);
+    let storage = QueryStorage::new(pool);
 
     let mut store = ThisQueryStore::new(storage);
 

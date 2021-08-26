@@ -13,6 +13,8 @@ keywords = ["cqrs", "event-sourcing", "es", "DDD"]
 
 [features]
 default = ["with-all-async"]
+
+# sqlx
 with-sqlx-postgres = [
   "tokio",
   "sqlx",
@@ -23,13 +25,26 @@ with-sqlx-postgres = [
 with-sqlx-mysql = ["tokio", "sqlx", "sqlx/mysql"]
 #with-sqlx-mssql = ["tokio", "sqlx", "sqlx/mssql"]
 with-sqlx-sqlite = ["tokio", "sqlx", "sqlx/sqlite"]
+
 with-all-sqlx = [
   "with-sqlx-postgres",
   "with-sqlx-mysql",
   #"with-sqlx-mssql",
   "with-sqlx-sqlite",
 ]
-with-all-async = ["with-all-sqlx"]
+
+# documents DBs
+with-mongodb = ["tokio", "futures", "mongodb"]
+
+with-all-doc-db = ["with-mongodb"]
+
+# key-value DBs
+with-redis = ["tokio", "redis"]
+
+with-all-kv-db = ["with-redis"]
+
+# all async
+with-all-async = ["with-all-sqlx", "with-all-doc-db", "with-all-kv-db"]
 
 [dependencies]
 # logging
@@ -54,6 +69,16 @@ sqlx = { version = "0.5.6", features = [
   "tls",
 ], optional = true }
 
+# mongodb
+mongodb = { version = "2.0.0-beta.3", default-features = false, features = [
+  "tokio-runtime",
+], optional = true }
+
+# redis
+redis = { version = "^0.21.1", default-features = false, features = [
+  "tokio-comp",
+], optional = true }
+
 # async runtime
 tokio = { version = "1", features = [
   "rt-multi-thread",
@@ -62,6 +87,8 @@ tokio = { version = "1", features = [
   "macros",
   "net",
 ], optional = true }
+
+futures = { version = "0.3", optional = true }
 
 [dev-dependencies]
 uuid = { version = "0.8.2", features = ["v4"] }

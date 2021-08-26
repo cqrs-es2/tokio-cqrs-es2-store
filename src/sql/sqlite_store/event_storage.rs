@@ -1,17 +1,26 @@
 use log::info;
 
 use async_trait::async_trait;
+use std::{
+    collections::HashMap,
+    marker::PhantomData,
+};
 
 use sqlx::sqlite::SqlitePool;
 
-use cqrs_es2::Error;
-
-use super::super::{
-    event_store::EventStore,
-    i_storage::IStorage,
-    mysql_constants::*,
-    query_store::QueryStore,
+use cqrs_es2::{
+    Error,
+    IAggregate,
+    ICommand,
+    IEvent,
 };
+
+use crate::async_store::{
+    EventStore,
+    IEventStorage,
+};
+
+use super::super::mysql_constants::*;
 
 static CREATE_EVENTS_TABLE: &str = "
 CREATE TABLE IF NOT EXISTS
@@ -40,28 +49,21 @@ snapshots
 );
 ";
 
-static CREATE_QUERY_TABLE: &str = "
-CREATE TABLE IF NOT EXISTS
-queries
-(
-    aggregate_type TEXT                        NOT NULL,
-    aggregate_id   TEXT                        NOT NULL,
-    query_type     TEXT                        NOT NULL,
-    version        bigint CHECK (version >= 0) NOT NULL,
-    payload        TEXT                        NOT NULL,
-    PRIMARY KEY (aggregate_type, aggregate_id, query_type)
-);
-";
-
 /// SQLite storage
-pub struct Storage {
+pub struct EventStorage<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     pool: SqlitePool,
+    _phantom: PhantomData<(C, E, A)>,
 }
 
-impl Storage {
+impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
+    EventStorage<C, E, A>
+{
     /// constructor
     pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            _phantom: PhantomData,
+        }
     }
 
     async fn create_events_table(&mut self) -> Result<(), Error> {
@@ -75,23 +77,6 @@ impl Storage {
 
         info!(
             "Created events table with '{}' affected rows",
-            res.rows_affected()
-        );
-
-        Ok(())
-    }
-
-    async fn create_query_table(&mut self) -> Result<(), Error> {
-        let res = match sqlx::query(CREATE_QUERY_TABLE)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(x) => x,
-            Err(e) => return Err(Error::new(e.to_string().as_str())),
-        };
-
-        info!(
-            "Created queries table with '{}' affected rows",
             res.rows_affected()
         );
 
@@ -117,16 +102,46 @@ impl Storage {
 }
 
 #[async_trait]
-impl IStorage for Storage {
+impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
+    IEventStorage<C, E, A> for EventStorage<C, E, A>
+{
     async fn insert_event(
         &mut self,
         agg_type: &str,
         agg_id: &str,
         sequence: i64,
-        payload: &serde_json::Value,
-        metadata: &serde_json::Value,
+        payload: &E,
+        metadata: &HashMap<String, String>,
     ) -> Result<(), Error> {
         self.create_events_table().await?;
+
+        let payload = match serde_json::to_value(&payload) {
+            Ok(x) => x,
+            Err(e) => {
+                return Err(Error::new(
+                    format!(
+                        "Could not serialize the event payload for \
+                         aggregate id {} with error: {}",
+                        &agg_id, e
+                    )
+                    .as_str(),
+                ));
+            },
+        };
+
+        let metadata = match serde_json::to_value(&metadata) {
+            Ok(x) => x,
+            Err(e) => {
+                return Err(Error::new(
+                    format!(
+                        "unable to serialize the event metadata for \
+                         aggregate id {} with error: {}",
+                        &agg_id, e
+                    )
+                    .as_str(),
+                ));
+            },
+        };
 
         match sqlx::query(INSERT_EVENT)
             .bind(&agg_type)
@@ -141,7 +156,7 @@ impl IStorage for Storage {
                 if x.rows_affected() != 1 {
                     return Err(Error::new(
                         format!(
-                            "insert new events failed for aggregate \
+                            "insert new event failed for aggregate \
                              id {}",
                             &agg_id
                         )
@@ -152,7 +167,7 @@ impl IStorage for Storage {
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "could not insert new events for aggregate \
+                        "unable to insert new event for aggregate \
                          id {} with error: {}",
                         &agg_id, e
                     )
@@ -168,7 +183,7 @@ impl IStorage for Storage {
         &mut self,
         agg_type: &str,
         agg_id: &str,
-    ) -> Result<Vec<(i64, serde_json::Value)>, Error> {
+    ) -> Result<Vec<(usize, E)>, Error> {
         self.create_events_table().await?;
 
         let rows: Vec<(i64, serde_json::Value)> =
@@ -182,7 +197,7 @@ impl IStorage for Storage {
                 Err(e) => {
                     return Err(Error::new(
                         format!(
-                            "could not load events table for \
+                            "unable to load events table for \
                              aggregate id {} with error: {}",
                             &agg_id, e
                         )
@@ -191,21 +206,34 @@ impl IStorage for Storage {
                 },
             };
 
-        Ok(rows)
+        let mut result = Vec::new();
+
+        for row in rows {
+            let payload = match serde_json::from_value(row.1) {
+                Ok(x) => x,
+                Err(e) => {
+                    return Err(Error::new(
+                        format!(
+                            "bad payload found in events table for \
+                             aggregate id {} with error: {}",
+                            &agg_id, e
+                        )
+                        .as_str(),
+                    ));
+                },
+            };
+
+            result.push((row.0 as usize, payload));
+        }
+
+        Ok(result)
     }
 
     async fn select_events_with_metadata(
         &mut self,
         agg_type: &str,
         agg_id: &str,
-    ) -> Result<
-        Vec<(
-            i64,
-            serde_json::Value,
-            serde_json::Value,
-        )>,
-        Error,
-    > {
+    ) -> Result<Vec<(usize, E, HashMap<String, String>)>, Error> {
         self.create_events_table().await?;
 
         let rows: Vec<(
@@ -222,7 +250,7 @@ impl IStorage for Storage {
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "could not load events table for aggregate \
+                        "unable to load events table for aggregate \
                          id {} with error: {}",
                         &agg_id, e
                     )
@@ -231,7 +259,41 @@ impl IStorage for Storage {
             },
         };
 
-        Ok(rows)
+        let mut result = Vec::new();
+
+        for row in rows {
+            let payload = match serde_json::from_value(row.1) {
+                Ok(x) => x,
+                Err(e) => {
+                    return Err(Error::new(
+                        format!(
+                            "bad payload found in events table for \
+                             aggregate id {} with error: {}",
+                            &agg_id, e
+                        )
+                        .as_str(),
+                    ));
+                },
+            };
+
+            let metadata = match serde_json::from_value(row.2) {
+                Ok(x) => x,
+                Err(e) => {
+                    return Err(Error::new(
+                        format!(
+                            "bad metadata found in events table for \
+                             aggregate id {} with error: {}",
+                            &agg_id, e
+                        )
+                        .as_str(),
+                    ));
+                },
+            };
+
+            result.push((row.0 as usize, payload, metadata));
+        }
+
+        Ok(result)
     }
 
     async fn update_snapshot(
@@ -239,7 +301,7 @@ impl IStorage for Storage {
         agg_type: &str,
         agg_id: &str,
         last_sequence: i64,
-        payload: &serde_json::Value,
+        payload: &A,
         current_sequence: usize,
     ) -> Result<(), Error> {
         self.create_snapshot_table().await?;
@@ -247,6 +309,20 @@ impl IStorage for Storage {
         let sql = match current_sequence {
             0 => INSERT_SNAPSHOT,
             _ => UPDATE_SNAPSHOT,
+        };
+
+        let payload = match serde_json::to_value(payload) {
+            Ok(x) => x,
+            Err(e) => {
+                return Err(Error::new(
+                    format!(
+                        "unable to serialize aggregate snapshot for \
+                         aggregate id {} with error: {}",
+                        &agg_id, e
+                    )
+                    .as_str(),
+                ));
+            },
         };
 
         match sqlx::query(sql)
@@ -272,7 +348,7 @@ impl IStorage for Storage {
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "could not insert new snapshot for \
+                        "unable to insert new snapshot for \
                          aggregate id {} with error: {}",
                         &agg_id, e
                     )
@@ -288,7 +364,7 @@ impl IStorage for Storage {
         &mut self,
         agg_type: &str,
         agg_id: &str,
-    ) -> Result<Vec<(i64, serde_json::Value)>, Error> {
+    ) -> Result<Option<(usize, A)>, Error> {
         self.create_snapshot_table().await?;
 
         let rows: Vec<(i64, serde_json::Value)> =
@@ -302,78 +378,39 @@ impl IStorage for Storage {
                 Err(e) => {
                     return Err(Error::new(
                         format!(
-                            "could not load events table for \
+                            "unable to load snapshots table for \
                              aggregate id {} with error: {}",
                             &agg_id, e
                         )
                         .as_str(),
-                    ))
+                    ));
                 },
             };
 
-        Ok(rows)
-    }
-
-    async fn update_query(
-        &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        query_type: &str,
-        version: i64,
-        payload: &serde_json::Value,
-    ) -> Result<(), Error> {
-        self.create_query_table().await?;
-
-        let sql = match version {
-            1 => INSERT_QUERY,
-            _ => UPDATE_QUERY,
+        if rows.len() == 0 {
+            return Ok(None);
         };
 
-        match sqlx::query(sql)
-            .bind(version)
-            .bind(&payload)
-            .bind(&agg_type)
-            .bind(&agg_id)
-            .bind(&query_type)
-            .execute(&self.pool)
-            .await
-        {
-            Ok(_) => Ok(()),
+        let row = rows[0].clone();
+
+        let aggregate = match serde_json::from_value(row.1) {
+            Ok(x) => x,
             Err(e) => {
-                return Err(Error::new(e.to_string().as_str()));
+                return Err(Error::new(
+                    format!(
+                        "bad payload found in snapshots table for \
+                         aggregate id {} with error: {}",
+                        &agg_id, e
+                    )
+                    .as_str(),
+                ));
             },
-        }
-    }
+        };
 
-    async fn select_query(
-        &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        query_type: &str,
-    ) -> Result<Vec<(i64, serde_json::Value)>, Error> {
-        self.create_query_table().await?;
-
-        let rows: Vec<(i64, serde_json::Value)> =
-            match sqlx::query_as(SELECT_QUERY)
-                .bind(&agg_type)
-                .bind(&agg_id)
-                .bind(&query_type)
-                .fetch_all(&self.pool)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => {
-                    return Err(Error::new(e.to_string().as_str()));
-                },
-            };
-
-        Ok(rows)
+        Ok(Some((row.0 as usize, aggregate)))
     }
 }
 
 /// convenient type alias for SQLite event store
-pub type SqliteEventStore<C, E, A> = EventStore<C, E, A, Storage>;
-
-/// convenient type alias for SQLite query store
-pub type SqliteQueryStore<C, E, A, Q> =
-    QueryStore<C, E, A, Q, Storage>;
+pub type SqliteEventStore<C, E, A> =
+    EventStore<C, E, A, EventStorage<C, E, A>>;

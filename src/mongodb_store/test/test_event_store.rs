@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use sqlx::mysql::MySqlPoolOptions;
+use mongodb::{
+    options::ClientOptions,
+    Client,
+};
 
 use cqrs_es2::{
     example_impl::*,
@@ -10,9 +13,9 @@ use cqrs_es2::{
 };
 
 use crate::{
-    mysql_store::{
+    mongodb_store::{
         EventStorage,
-        MySqlEventStore,
+        MongoDbEventStore,
     },
     repository::IEventStore,
 };
@@ -20,7 +23,7 @@ use crate::{
 use super::common::*;
 
 type ThisEventStore =
-    MySqlEventStore<CustomerCommand, CustomerEvent, Customer>;
+    MongoDbEventStore<CustomerCommand, CustomerEvent, Customer>;
 
 type ThisAggregateContext =
     AggregateContext<CustomerCommand, CustomerEvent, Customer>;
@@ -35,16 +38,28 @@ pub fn metadata() -> HashMap<String, String> {
 }
 
 async fn commit_and_load_events(
-    uri: &str,
-    with_snapshots: bool,
+    with_snapshots: bool
 ) -> Result<(), Error> {
-    let pool = MySqlPoolOptions::new()
-        .max_connections(5)
-        .connect(uri)
-        .await
-        .unwrap();
+    let mut client_options =
+        match ClientOptions::parse(CONNECTION_STRING).await {
+            Ok(x) => x,
+            Err(e) => {
+                return Err(Error::new(e.to_string().as_str()));
+            },
+        };
 
-    let storage = EventStorage::new(pool);
+    client_options.app_name = Some("UnitTesting".to_string());
+
+    let client = match Client::with_options(client_options) {
+        Ok(x) => x,
+        Err(e) => {
+            return Err(Error::new(e.to_string().as_str()));
+        },
+    };
+
+    let db = client.database("test");
+
+    let storage = EventStorage::new(db);
 
     let mut store = ThisEventStore::new(storage, with_snapshots);
 
@@ -201,37 +216,11 @@ async fn commit_and_load_events(
 }
 
 #[test]
-fn test_mariadb_with_snapshots() {
-    tokio_test::block_on(commit_and_load_events(
-        CONNECTION_STRING_MARIADB,
-        true,
-    ))
-    .unwrap();
+fn test_with_snapshots() {
+    tokio_test::block_on(commit_and_load_events(true)).unwrap();
 }
 
 #[test]
-fn test_mysql_with_snapshots() {
-    tokio_test::block_on(commit_and_load_events(
-        CONNECTION_STRING_MYSQL,
-        true,
-    ))
-    .unwrap();
-}
-
-#[test]
-fn test_mariadb_no_snapshots() {
-    tokio_test::block_on(commit_and_load_events(
-        CONNECTION_STRING_MARIADB,
-        false,
-    ))
-    .unwrap();
-}
-
-#[test]
-fn test_mysql_no_snapshots() {
-    tokio_test::block_on(commit_and_load_events(
-        CONNECTION_STRING_MYSQL,
-        false,
-    ))
-    .unwrap();
+fn test_no_snapshots() {
+    tokio_test::block_on(commit_and_load_events(false)).unwrap();
 }

@@ -11,8 +11,8 @@ use cqrs_es2::{
 
 use crate::{
     postgres_store::{
+        EventStorage,
         PostgresEventStore,
-        Storage,
     },
     repository::IEventStore,
 };
@@ -43,7 +43,7 @@ async fn commit_and_load_events(
         .await
         .unwrap();
 
-    let storage = Storage::new(pool);
+    let storage = EventStorage::new(pool);
 
     let mut store = ThisEventStore::new(storage, with_snapshots);
 

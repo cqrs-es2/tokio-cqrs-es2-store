@@ -9,7 +9,7 @@ use cqrs_es2::{
 use crate::{
     postgres_store::{
         PostgresQueryStore,
-        Storage,
+        QueryStorage,
     },
     repository::IQueryStore,
 };
@@ -36,7 +36,7 @@ async fn commit_and_load_queries() -> Result<(), Error> {
         .await
         .unwrap();
 
-    let storage = Storage::new(pool);
+    let storage = QueryStorage::new(pool);
 
     let mut store = ThisQueryStore::new(storage);
 

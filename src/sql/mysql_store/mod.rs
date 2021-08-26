@@ -1,7 +1,9 @@
 //! MySql/MariaDB store
 
-pub use storage::*;
+pub use event_storage::*;
+pub use query_storage::*;
 
-mod storage;
+mod event_storage;
+mod query_storage;
 
 mod test;

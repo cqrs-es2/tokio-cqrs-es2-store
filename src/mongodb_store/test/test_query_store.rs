@@ -1,4 +1,7 @@
-use sqlx::sqlite::SqlitePoolOptions;
+use mongodb::{
+    options::ClientOptions,
+    Client,
+};
 
 use cqrs_es2::{
     example_impl::*,
@@ -7,16 +10,16 @@ use cqrs_es2::{
 };
 
 use crate::{
-    repository::IQueryStore,
-    sqlite_store::{
+    mongodb_store::{
+        MongoDbQueryStore,
         QueryStorage,
-        SqliteQueryStore,
     },
+    repository::IQueryStore,
 };
 
 use super::common::*;
 
-type ThisQueryStore = SqliteQueryStore<
+type ThisQueryStore = MongoDbQueryStore<
     CustomerCommand,
     CustomerEvent,
     Customer,
@@ -30,13 +33,26 @@ type ThisQueryContext = QueryContext<
 >;
 
 async fn commit_and_load_queries() -> Result<(), Error> {
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(CONNECTION_STRING)
-        .await
-        .unwrap();
+    let mut client_options =
+        match ClientOptions::parse(CONNECTION_STRING).await {
+            Ok(x) => x,
+            Err(e) => {
+                return Err(Error::new(e.to_string().as_str()));
+            },
+        };
 
-    let storage = QueryStorage::new(pool);
+    client_options.app_name = Some("UnitTesting".to_string());
+
+    let client = match Client::with_options(client_options) {
+        Ok(x) => x,
+        Err(e) => {
+            return Err(Error::new(e.to_string().as_str()));
+        },
+    };
+
+    let db = client.database("test");
+
+    let storage = QueryStorage::new(db);
 
     let mut store = ThisQueryStore::new(storage);
 
