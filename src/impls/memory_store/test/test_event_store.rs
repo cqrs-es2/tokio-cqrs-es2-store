@@ -26,10 +26,7 @@ async fn check_memory_event_store() -> Result<(), Error> {
 
     let id = "test_id_A";
 
-    let initial_events = store
-        .load_events(&id, true)
-        .await
-        .unwrap();
+    let initial_events = store.load_events(&id).await.unwrap();
     assert_eq!(0, initial_events.len());
 
     let agg_context = store.load_aggregate(&id).await.unwrap();
@@ -45,10 +42,7 @@ async fn check_memory_event_store() -> Result<(), Error> {
         .await
         .unwrap();
 
-    let stored_events = store
-        .load_events(&id, true)
-        .await
-        .unwrap();
+    let stored_events = store.load_events(&id).await.unwrap();
     assert_eq!(1, stored_events.len());
 
     let agg_context = store.load_aggregate(&id).await.unwrap();
@@ -72,10 +66,7 @@ async fn check_memory_event_store() -> Result<(), Error> {
         )
         .await
         .unwrap();
-    let stored_envelopes = store
-        .load_events(&id, true)
-        .await
-        .unwrap();
+    let stored_envelopes = store.load_events(&id).await.unwrap();
 
     let mut agg = Customer::default();
     for stored_envelope in stored_envelopes {

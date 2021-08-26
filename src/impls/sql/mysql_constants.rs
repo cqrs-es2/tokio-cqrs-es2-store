@@ -21,20 +21,6 @@ VALUES
 pub static SELECT_EVENTS: &str = "
 SELECT
     sequence,
-    payload
-FROM
-    events
-WHERE
-    aggregate_type = ?
-    AND
-    aggregate_id = ?
-ORDER BY 
-    sequence;
-";
-
-pub static SELECT_EVENTS_WITH_METADATA: &str = "
-SELECT
-    sequence,
     payload,
     metadata
 FROM

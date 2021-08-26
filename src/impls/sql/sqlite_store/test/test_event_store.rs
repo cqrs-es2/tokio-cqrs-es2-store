@@ -30,7 +30,7 @@ type ThisAggregateContext =
 
 type ThisEventContext = EventContext<CustomerCommand, CustomerEvent>;
 
-pub fn metadata() -> HashMap<String, String> {
+pub fn get_metadata() -> HashMap<String, String> {
     let now = "2021-03-18T12:32:45.930Z".to_string();
     let mut metadata = HashMap::new();
     metadata.insert("time".to_string(), now);
@@ -62,7 +62,7 @@ async fn commit_and_load_events(
     assert_eq!(
         0,
         store
-            .load_events(id.as_str(), false)
+            .load_events(id.as_str())
             .await
             .unwrap()
             .len()
@@ -92,17 +92,19 @@ async fn commit_and_load_events(
         }),
     ];
 
+    let metadata = get_metadata();
+
     store
         .commit(
             vec![events[0].clone(), events[1].clone()],
             context,
-            metadata(),
+            metadata.clone(),
         )
         .await
         .unwrap();
 
     let contexts = store
-        .load_events(id.as_str(), false)
+        .load_events(id.as_str())
         .await
         .unwrap();
 
@@ -114,13 +116,13 @@ async fn commit_and_load_events(
                 id.to_string(),
                 1,
                 events[0].clone(),
-                Default::default()
+                metadata.clone()
             ),
             ThisEventContext::new(
                 id.to_string(),
                 2,
                 events[1].clone(),
-                Default::default()
+                metadata.clone()
             ),
         ]
     );
@@ -145,17 +147,19 @@ async fn commit_and_load_events(
         )
     );
 
+    let metadata = get_metadata();
+
     store
         .commit(
             vec![events[2].clone()],
             context,
-            metadata(),
+            metadata.clone(),
         )
         .await
         .unwrap();
 
     let contexts = store
-        .load_events(id.as_str(), false)
+        .load_events(id.as_str())
         .await
         .unwrap();
 
@@ -167,19 +171,19 @@ async fn commit_and_load_events(
                 id.to_string(),
                 1,
                 events[0].clone(),
-                Default::default()
+                metadata.clone()
             ),
             ThisEventContext::new(
                 id.to_string(),
                 2,
                 events[1].clone(),
-                Default::default()
+                metadata.clone()
             ),
             ThisEventContext::new(
                 id.to_string(),
                 3,
                 events[2].clone(),
-                Default::default()
+                metadata.clone()
             ),
         ]
     );

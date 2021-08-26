@@ -78,7 +78,7 @@ impl<
     ) -> Result<AggregateContext<C, E, A>, Error> {
         let id = aggregate_id.to_string();
 
-        let events = self.load_events(&id, false).await?;
+        let events = self.load_events(&id).await?;
 
         if events.len() == 0 {
             return Ok(AggregateContext::new(
@@ -185,54 +185,6 @@ impl<
 
         Ok(contexts)
     }
-
-    async fn load_events_only(
-        &mut self,
-        aggregate_id: &str,
-    ) -> Result<Vec<EventContext<C, E>>, Error> {
-        let agg_type = A::aggregate_type();
-
-        let rows = self
-            .storage
-            .select_events_only(agg_type, aggregate_id)
-            .await?;
-
-        Ok(rows
-            .iter()
-            .map(|x| {
-                EventContext::new(
-                    aggregate_id.to_string(),
-                    x.0 as usize,
-                    x.1.clone(),
-                    Default::default(),
-                )
-            })
-            .collect())
-    }
-
-    async fn load_events_with_metadata(
-        &mut self,
-        aggregate_id: &str,
-    ) -> Result<Vec<EventContext<C, E>>, Error> {
-        let agg_type = A::aggregate_type();
-
-        let rows = self
-            .storage
-            .select_events_with_metadata(agg_type, aggregate_id)
-            .await?;
-
-        Ok(rows
-            .iter()
-            .map(|x| {
-                EventContext::new(
-                    aggregate_id.to_string(),
-                    x.0 as usize,
-                    x.1.clone(),
-                    x.2.clone(),
-                )
-            })
-            .collect())
-    }
 }
 
 #[async_trait]
@@ -246,18 +198,25 @@ impl<
     async fn load_events(
         &mut self,
         aggregate_id: &str,
-        with_metadata: bool,
     ) -> Result<Vec<EventContext<C, E>>, Error> {
-        match with_metadata {
-            true => {
-                self.load_events_with_metadata(aggregate_id)
-                    .await
-            },
-            false => {
-                self.load_events_only(aggregate_id)
-                    .await
-            },
-        }
+        let agg_type = A::aggregate_type();
+
+        let rows = self
+            .storage
+            .select_events(agg_type, aggregate_id)
+            .await?;
+
+        Ok(rows
+            .iter()
+            .map(|x| {
+                EventContext::new(
+                    aggregate_id.to_string(),
+                    x.0 as usize,
+                    x.1.clone(),
+                    x.2.clone(),
+                )
+            })
+            .collect())
     }
 
     async fn load_aggregate(

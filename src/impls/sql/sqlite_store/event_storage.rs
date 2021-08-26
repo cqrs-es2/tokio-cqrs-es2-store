@@ -179,57 +179,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
         Ok(())
     }
 
-    async fn select_events_only(
-        &mut self,
-        agg_type: &str,
-        agg_id: &str,
-    ) -> Result<Vec<(usize, E)>, Error> {
-        self.create_events_table().await?;
-
-        let rows: Vec<(i64, serde_json::Value)> =
-            match sqlx::query_as(SELECT_EVENTS)
-                .bind(&agg_type)
-                .bind(&agg_id)
-                .fetch_all(&self.pool)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => {
-                    return Err(Error::new(
-                        format!(
-                            "unable to load events table for \
-                             aggregate id {} with error: {}",
-                            &agg_id, e
-                        )
-                        .as_str(),
-                    ));
-                },
-            };
-
-        let mut result = Vec::new();
-
-        for row in rows {
-            let payload = match serde_json::from_value(row.1) {
-                Ok(x) => x,
-                Err(e) => {
-                    return Err(Error::new(
-                        format!(
-                            "bad payload found in events table for \
-                             aggregate id {} with error: {}",
-                            &agg_id, e
-                        )
-                        .as_str(),
-                    ));
-                },
-            };
-
-            result.push((row.0 as usize, payload));
-        }
-
-        Ok(result)
-    }
-
-    async fn select_events_with_metadata(
+    async fn select_events(
         &mut self,
         agg_type: &str,
         agg_id: &str,
@@ -240,7 +190,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             i64,
             serde_json::Value,
             serde_json::Value,
-        )> = match sqlx::query_as(SELECT_EVENTS_WITH_METADATA)
+        )> = match sqlx::query_as(SELECT_EVENTS)
             .bind(&agg_type)
             .bind(&agg_id)
             .fetch_all(&self.pool)

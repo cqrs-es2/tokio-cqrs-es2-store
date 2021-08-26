@@ -18,7 +18,6 @@ pub trait IEventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     async fn load_events(
         &mut self,
         aggregate_id: &str,
-        with_metadata: bool,
     ) -> Result<Vec<EventContext<C, E>>, Error>;
 
     /// Load aggregate at current state
@@ -35,7 +34,7 @@ pub trait IEventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
         metadata: HashMap<String, String>,
     ) -> Result<Vec<EventContext<C, E>>, Error>;
 
-    /// Method to wrap a set of events with the additional metadata
+    /// Wrap a set of events with the additional metadata
     /// needed for persistence and publishing
     fn wrap_events(
         &self,

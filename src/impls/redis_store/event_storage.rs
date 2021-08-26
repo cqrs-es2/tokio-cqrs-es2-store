@@ -95,22 +95,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
         Ok(())
     }
 
-    async fn select_events_only(
-        &mut self,
-        agg_type: &str,
-        agg_id: &str,
-    ) -> Result<Vec<(usize, E)>, Error> {
-        let events = self
-            .select_events_with_metadata(agg_type, agg_id)
-            .await?;
-
-        Ok(events
-            .iter()
-            .map(|x| (x.0, x.1.clone()))
-            .collect())
-    }
-
-    async fn select_events_with_metadata(
+    async fn select_events(
         &mut self,
         agg_type: &str,
         agg_id: &str,

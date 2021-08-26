@@ -22,15 +22,8 @@ pub trait IEventStorage<C: ICommand, E: IEvent, A: IAggregate<C, E>>:
         metadata: &HashMap<String, String>,
     ) -> Result<(), Error>;
 
-    /// select all events
-    async fn select_events_only(
-        &mut self,
-        agg_type: &str,
-        agg_id: &str,
-    ) -> Result<Vec<(usize, E)>, Error>;
-
     /// select all evens with metadata
-    async fn select_events_with_metadata(
+    async fn select_events(
         &mut self,
         agg_type: &str,
         agg_id: &str,
