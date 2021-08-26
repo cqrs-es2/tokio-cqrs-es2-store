@@ -58,7 +58,7 @@ impl BankAccount for BankAccountService {
                     is_successful: true,
                 }))
             },
-            Err(err) => Err(Status::aborted(err.to_string())),
+            Err(e) => Err(Status::aborted(e.to_string())),
         }
     }
 
@@ -86,7 +86,7 @@ impl BankAccount for BankAccountService {
                     is_successful: true,
                 }))
             },
-            Err(err) => Err(Status::aborted(err.to_string())),
+            Err(e) => Err(Status::aborted(e.to_string())),
         }
     }
 
@@ -114,7 +114,7 @@ impl BankAccount for BankAccountService {
                     is_successful: true,
                 }))
             },
-            Err(err) => Err(Status::aborted(err.to_string())),
+            Err(e) => Err(Status::aborted(e.to_string())),
         }
     }
 
@@ -143,7 +143,7 @@ impl BankAccount for BankAccountService {
                     is_successful: true,
                 }))
             },
-            Err(err) => Err(Status::aborted(err.to_string())),
+            Err(e) => Err(Status::aborted(e.to_string())),
         }
     }
 
