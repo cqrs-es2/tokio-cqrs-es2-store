@@ -103,7 +103,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                         return Err(Error::new(
                             format!(
                                 "unable to serialize the event \
-                                 payload for aggregate id {} with \
+                                 payload for aggregate id '{}' with \
                                  error: {}",
                                 &aggregate_id, e
                             )
@@ -143,7 +143,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                 return Err(Error::new(
                     format!(
                         "unable to insert new events for aggregate \
-                         id {} with error: {}",
+                         id '{}' with error: {}",
                         &aggregate_id, e
                     )
                     .as_str(),
@@ -186,7 +186,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                 return Err(Error::new(
                     format!(
                         "unable to load events table for aggregate \
-                         id {} with error: {}",
+                         id '{}' with error: {}",
                         aggregate_id, e
                     )
                     .as_str(),
@@ -203,8 +203,8 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                     return Err(Error::new(
                         format!(
                             "unable to load next entry from events \
-                             table for aggregate id {} with error: \
-                             {}",
+                             table for aggregate id '{}' with \
+                             error: {}",
                             aggregate_id, e
                         )
                         .as_str(),
@@ -226,7 +226,8 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                         return Err(Error::new(
                             format!(
                                 "bad payload found in events table \
-                                 for aggregate id {} with error: {}",
+                                 for aggregate id '{}' with error: \
+                                 {}",
                                 aggregate_id, e
                             )
                             .as_str(),
@@ -265,7 +266,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                 return Err(Error::new(
                     format!(
                         "unable to serialize aggregate snapshot for \
-                         aggregate id {} with error: {}",
+                         aggregate id '{}' with error: {}",
                         &aggregate_id, e
                     )
                     .as_str(),
@@ -319,7 +320,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                         return Err(Error::new(
                             format!(
                                 "unable to insert new snapshot for \
-                                 aggregate id {} with error: {}",
+                                 aggregate id '{}' with error: {}",
                                 &aggregate_id, e
                             )
                             .as_str(),
@@ -349,7 +350,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                         return Err(Error::new(
                             format!(
                                 "unable to update snapshot for \
-                                 aggregate id {} with error: {}",
+                                 aggregate id '{}' with error: {}",
                                 &aggregate_id, e
                             )
                             .as_str(),
@@ -390,7 +391,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                 return Err(Error::new(
                     format!(
                         "unable to check snapshots table for \
-                         aggregate id {} with error: {}",
+                         aggregate id '{}' with error: {}",
                         &aggregate_id, e
                     )
                     .as_str(),
@@ -421,7 +422,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                 return Err(Error::new(
                     format!(
                         "bad payload found in snapshots table for \
-                         aggregate id {} with error: {}",
+                         aggregate id '{}' with error: {}",
                         &aggregate_id, e
                     )
                     .as_str(),

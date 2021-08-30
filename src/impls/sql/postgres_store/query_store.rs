@@ -89,7 +89,7 @@ impl<
                 return Err(Error::new(
                     format!(
                         "unable to serialize the payload of query \
-                         '{}' with id: '{}', error: {}",
+                         '{}' with aggregate id '{}', error: {}",
                         &query_type, &aggregate_id, e,
                     )
                     .as_str(),
@@ -111,7 +111,7 @@ impl<
                     return Err(Error::new(
                         format!(
                             "insert/update query failed for \
-                             aggregate id {}",
+                             aggregate id '{}'",
                             &aggregate_id
                         )
                         .as_str(),
@@ -122,7 +122,7 @@ impl<
                 return Err(Error::new(
                     format!(
                         "unable to insert/update query for \
-                         aggregate id {} with error: {}",
+                         aggregate id '{}' with error: {}",
                         &aggregate_id, e
                     )
                     .as_str(),
@@ -160,7 +160,7 @@ impl<
                     return Err(Error::new(
                         format!(
                             "unable to load queries table for query \
-                             '{}' with id: '{}', error: {}",
+                             '{}' with aggregate id '{}', error: {}",
                             &query_type, &aggregate_id, e,
                         )
                         .as_str(),
@@ -190,7 +190,8 @@ impl<
                 return Err(Error::new(
                     format!(
                         "bad payload found in queries table for \
-                         query '{}' with id: '{}', error: {}",
+                         query '{}' with aggregate id '{}', error: \
+                         {}",
                         &query_type, &aggregate_id, e,
                     )
                     .as_str(),
