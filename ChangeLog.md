@@ -1,5 +1,9 @@
 # Change log
 
+## `v0.1.3`
+
+- Remove obsolete module
+
 ## `v0.1.2`
 
 - update docs
