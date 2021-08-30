@@ -31,10 +31,14 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
 {
     /// constructor
     pub fn new(pool: PgPool) -> Self {
-        Self {
+        let x = Self {
             pool,
             _phantom: PhantomData,
-        }
+        };
+
+        trace!("Created new async Postgres event store");
+
+        x
     }
 }
 

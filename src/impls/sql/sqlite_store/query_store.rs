@@ -57,10 +57,14 @@ impl<
 {
     /// constructor
     pub fn new(pool: SqlitePool) -> Self {
-        Self {
+        let x = Self {
             pool,
             _phantom: PhantomData,
-        }
+        };
+
+        trace!("Created new async SQLite query store");
+
+        x
     }
 
     async fn create_query_table(&mut self) -> Result<(), Error> {

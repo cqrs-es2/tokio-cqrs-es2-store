@@ -196,7 +196,7 @@ impl<
         }
 
         debug!(
-            "Successfully applied command '{:?}' to aggregate '{}' ",
+            "Successfully applied command '{:?}' to aggregate '{}'",
             &command, &aggregate_id
         );
 

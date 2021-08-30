@@ -44,10 +44,14 @@ impl<
 {
     /// constructor
     pub fn new(pool: MySqlPool) -> Self {
-        Self {
+        let x = Self {
             pool,
             _phantom: PhantomData,
-        }
+        };
+
+        trace!("Created new async MySQL query store");
+
+        x
     }
 }
 

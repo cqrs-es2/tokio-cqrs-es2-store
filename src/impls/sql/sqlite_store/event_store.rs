@@ -58,10 +58,14 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
 {
     /// constructor
     pub fn new(pool: SqlitePool) -> Self {
-        Self {
+        let x = Self {
             pool,
             _phantom: PhantomData,
-        }
+        };
+
+        trace!("Created new async SQLite event store");
+
+        x
     }
 
     async fn create_events_table(&mut self) -> Result<(), Error> {
