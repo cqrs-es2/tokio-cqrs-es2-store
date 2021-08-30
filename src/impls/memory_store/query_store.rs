@@ -95,11 +95,12 @@ impl<
         &mut self,
         context: QueryContext<C, E, Q>,
     ) -> Result<(), Error> {
+        let query_type = Q::query_type();
         let aggregate_id = context.aggregate_id.clone();
 
         debug!(
-            "storing a new query for aggregate id '{}'",
-            &aggregate_id
+            "storing a new query '{}' for aggregate id '{}'",
+            query_type, &aggregate_id
         );
 
         // uninteresting unwrap: this is not a struct for production
@@ -115,8 +116,11 @@ impl<
         &mut self,
         aggregate_id: &str,
     ) -> Result<QueryContext<C, E, Q>, Error> {
+        let query_type = Q::query_type();
+
         trace!(
-            "loading query for aggregate id '{}'",
+            "loading query `{}` for aggregate id '{}'",
+            query_type,
             aggregate_id
         );
 

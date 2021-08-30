@@ -86,8 +86,8 @@ impl<
         let aggregate_id = context.aggregate_id;
 
         debug!(
-            "storing a new query for aggregate id '{}'",
-            &aggregate_id
+            "storing a new query `{}` for aggregate id '{}'",
+            query_type, &aggregate_id
         );
 
         let payload = match serde_json::to_string(&context.payload) {

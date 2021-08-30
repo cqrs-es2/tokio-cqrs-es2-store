@@ -77,8 +77,8 @@ impl<
         let aggregate_id = context.aggregate_id;
 
         debug!(
-            "storing a new query for aggregate id '{}'",
-            &aggregate_id
+            "storing a new query '{}' for aggregate id '{}'",
+            query_type, &aggregate_id
         );
 
         let r = json!({
