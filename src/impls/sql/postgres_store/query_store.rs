@@ -24,7 +24,7 @@ use crate::repository::{
 
 use super::super::postgres_constants::*;
 
-/// Postgres storage
+/// Async Postgres query store
 pub struct QueryStore<
     C: ICommand,
     E: IEvent,

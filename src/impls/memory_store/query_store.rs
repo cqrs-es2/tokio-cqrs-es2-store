@@ -30,7 +30,7 @@ use crate::repository::{
 type LockedQueryContextMap<C, E, Q> =
     RwLock<HashMap<String, QueryContext<C, E, Q>>>;
 
-///  Simple memory store only useful for testing purposes
+/// Async memory query store useful for testing purposes only
 pub struct QueryStore<
     C: ICommand,
     E: IEvent,

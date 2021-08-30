@@ -27,7 +27,7 @@ use crate::repository::{
     IQueryStore,
 };
 
-/// Redis storage
+/// Async Redis query store
 pub struct QueryStore<
     C: ICommand,
     E: IEvent,

@@ -31,7 +31,7 @@ use crate::repository::{
 
 use super::query_document::QueryDocument;
 
-/// MongoDB storage
+/// Async MongoDB query store
 pub struct QueryStore<
     C: ICommand,
     E: IEvent,

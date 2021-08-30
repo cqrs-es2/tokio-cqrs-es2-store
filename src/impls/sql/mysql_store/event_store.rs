@@ -20,7 +20,7 @@ use crate::repository::IEventStore;
 
 use super::super::mysql_constants::*;
 
-/// MySql/MariaDB storage
+/// Async MySql/MariaDB event store
 pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     pool: MySqlPool,
     _phantom: PhantomData<(C, E, A)>,

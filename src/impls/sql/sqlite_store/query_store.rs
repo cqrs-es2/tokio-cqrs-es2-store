@@ -37,7 +37,7 @@ queries
 );
 ";
 
-/// SQLite storage
+/// Async SQLite query store
 pub struct QueryStore<
     C: ICommand,
     E: IEvent,

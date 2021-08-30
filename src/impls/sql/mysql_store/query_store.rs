@@ -24,7 +24,7 @@ use crate::repository::{
 
 use super::super::mysql_constants::*;
 
-/// MySql/MariaDB storage
+/// Async MySql/MariaDB query store
 pub struct QueryStore<
     C: ICommand,
     E: IEvent,

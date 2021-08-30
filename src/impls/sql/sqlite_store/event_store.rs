@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS
     );
 ";
 
-/// SQLite storage
+/// Async SQLite event store
 pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     pool: SqlitePool,
     _phantom: PhantomData<(C, E, A)>,

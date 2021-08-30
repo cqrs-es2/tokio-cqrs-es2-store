@@ -20,7 +20,7 @@ use crate::repository::IEventStore;
 
 use super::super::postgres_constants::*;
 
-/// Postgres storage
+/// Async Postgres event store
 pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     pool: PgPool,
     _phantom: PhantomData<(C, E, A)>,

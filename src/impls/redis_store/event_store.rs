@@ -23,7 +23,7 @@ use cqrs_es2::{
 
 use crate::repository::IEventStore;
 
-/// Redis storage
+/// Async Redis event store
 pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     conn: Connection,
     _phantom: PhantomData<(C, E, A)>,

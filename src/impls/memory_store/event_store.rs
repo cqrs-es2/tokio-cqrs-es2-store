@@ -28,7 +28,7 @@ type LockedEventContextMap<C, E> =
 type LockedAggregateContextMap<C, E, A> =
     RwLock<HashMap<String, AggregateContext<C, E, A>>>;
 
-///  Simple memory store only useful for testing purposes
+/// Async memory event store useful for testing purposes only
 pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     events: Arc<LockedEventContextMap<C, E>>,
     snapshots: Arc<LockedAggregateContextMap<C, E, A>>,

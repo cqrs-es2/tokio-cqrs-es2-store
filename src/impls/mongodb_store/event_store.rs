@@ -32,7 +32,7 @@ use super::{
     snapshot_document::SnapshotDocument,
 };
 
-/// MongoDB storage
+/// Async MongoDB event store
 pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     db: Database,
     _phantom: PhantomData<(C, E, A)>,
