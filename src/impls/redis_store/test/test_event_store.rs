@@ -10,22 +10,14 @@ use cqrs_es2::{
 };
 
 use crate::{
-    redis_store::{
-        EventStorage,
-        RedisEventStore,
-    },
-    repository::IEventStore,
+    redis_store::EventStore,
+    IEventStore,
 };
 
 use super::common::*;
 
 type ThisEventStore =
-    RedisEventStore<CustomerCommand, CustomerEvent, Customer>;
-
-type ThisAggregateContext =
-    AggregateContext<CustomerCommand, CustomerEvent, Customer>;
-
-type ThisEventContext = EventContext<CustomerCommand, CustomerEvent>;
+    EventStore<CustomerCommand, CustomerEvent, Customer>;
 
 pub fn get_metadata() -> HashMap<String, String> {
     let now = "2021-03-18T12:32:45.930Z".to_string();
@@ -34,9 +26,7 @@ pub fn get_metadata() -> HashMap<String, String> {
     metadata
 }
 
-async fn commit_and_load_events(
-    with_snapshots: bool
-) -> Result<(), Error> {
+async fn check_save_load_events() -> Result<(), Error> {
     let client = match Client::open(CONNECTION_STRING) {
         Ok(x) => x,
         Err(e) => {
@@ -51,172 +41,161 @@ async fn commit_and_load_events(
         },
     };
 
-    let storage = EventStorage::new(conn);
-
-    let mut store = ThisEventStore::new(storage, with_snapshots);
+    let mut store = ThisEventStore::new(conn);
 
     let id = uuid::Uuid::new_v4().to_string();
 
-    // loading nonexisting stream defaults to a vector with zero
-    // length
-    assert_eq!(
-        0,
-        store
-            .load_events(id.as_str())
-            .await
-            .unwrap()
-            .len()
-    );
+    let stored_events = store.load_events(&id).await.unwrap();
+    assert_eq!(0, stored_events.len());
 
-    // loading nonexisting aggregate returns default construction
-    let context = store
-        .load_aggregate(id.as_str())
-        .await
-        .unwrap();
+    let metadata = get_metadata();
 
-    assert_eq!(
-        context,
-        ThisAggregateContext::new(id.clone(), Customer::default(), 0)
-    );
-
-    // apply a couple of events
-    let events = vec![
+    let mut contexts_0 = vec![EventContext::new(
+        id.to_string(),
+        1,
         CustomerEvent::NameAdded(NameAdded {
             changed_name: "test_event_A".to_string(),
         }),
-        CustomerEvent::EmailUpdated(EmailUpdated {
-            new_email: "test A".to_string(),
-        }),
-        CustomerEvent::AddressUpdated(AddressUpdated {
-            new_address: "test B".to_string(),
-        }),
+        metadata,
+    )];
+
+    store
+        .save_events(&contexts_0)
+        .await
+        .unwrap();
+
+    let stored_events = store.load_events(&id).await.unwrap();
+    assert_eq!(stored_events, contexts_0);
+
+    let metadata = get_metadata();
+
+    let mut contexts_1 = vec![
+        EventContext::new(
+            id.to_string(),
+            2,
+            CustomerEvent::EmailUpdated(EmailUpdated {
+                new_email: "test A".to_string(),
+            }),
+            metadata.clone(),
+        ),
+        EventContext::new(
+            id.to_string(),
+            3,
+            CustomerEvent::EmailUpdated(EmailUpdated {
+                new_email: "test B".to_string(),
+            }),
+            metadata.clone(),
+        ),
+        EventContext::new(
+            id.to_string(),
+            4,
+            CustomerEvent::AddressUpdated(AddressUpdated {
+                new_address: "something else happening here"
+                    .to_string(),
+            }),
+            metadata.clone(),
+        ),
     ];
 
-    let metadata = get_metadata();
+    store
+        .save_events(&contexts_1)
+        .await
+        .unwrap();
+    let stored_events = store.load_events(&id).await.unwrap();
+
+    contexts_0.append(&mut contexts_1);
+    assert_eq!(stored_events, contexts_0);
+
+    Ok(())
+}
+
+async fn check_save_load_snapshots() -> Result<(), Error> {
+    let client = match Client::open(CONNECTION_STRING) {
+        Ok(x) => x,
+        Err(e) => {
+            return Err(Error::new(e.to_string().as_str()));
+        },
+    };
+
+    let conn = match client.get_connection() {
+        Ok(x) => x,
+        Err(e) => {
+            return Err(Error::new(e.to_string().as_str()));
+        },
+    };
+
+    let mut store = ThisEventStore::new(conn);
+
+    let id = uuid::Uuid::new_v4().to_string();
+
+    let stored_context = store
+        .load_aggregate_from_snapshot(&id)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        stored_context,
+        AggregateContext::new(id.to_string(), 0, Default::default())
+    );
+
+    let context = AggregateContext::new(
+        id.to_string(),
+        1,
+        Customer {
+            customer_id: "customer 1".to_string(),
+            name: "test name".to_string(),
+            email: "test@email.com".to_string(),
+            addresses: vec!["initial address".to_string()],
+        },
+    );
 
     store
-        .commit(
-            vec![events[0].clone(), events[1].clone()],
-            context,
-            metadata.clone(),
-        )
+        .save_aggregate_snapshot(context.clone())
         .await
         .unwrap();
 
-    let contexts = store
-        .load_events(id.as_str())
+    let stored_context = store
+        .load_aggregate_from_snapshot(&id)
         .await
         .unwrap();
 
-    // check stored events are correct
-    assert_eq!(
-        contexts,
-        vec![
-            ThisEventContext::new(
-                id.to_string(),
-                1,
-                events[0].clone(),
-                metadata.clone()
-            ),
-            ThisEventContext::new(
-                id.to_string(),
-                2,
-                events[1].clone(),
-                metadata.clone()
-            ),
-        ]
+    assert_eq!(stored_context, context);
+
+    let context = AggregateContext::new(
+        id.to_string(),
+        2,
+        Customer {
+            customer_id: "customer 2".to_string(),
+            name: "test name 2".to_string(),
+            email: "test2@email.com".to_string(),
+            addresses: vec![
+                "initial address".to_string(),
+                "second address".to_string(),
+            ],
+        },
     );
-
-    let context = store
-        .load_aggregate(id.as_str())
-        .await
-        .unwrap();
-
-    // check stored aggregate is correct
-    assert_eq!(
-        context,
-        ThisAggregateContext::new(
-            id.clone(),
-            Customer {
-                customer_id: "".to_string(),
-                name: "test_event_A".to_string(),
-                email: "test A".to_string(),
-                addresses: Default::default()
-            },
-            2
-        )
-    );
-
-    let metadata = get_metadata();
 
     store
-        .commit(
-            vec![events[2].clone()],
-            context,
-            metadata.clone(),
-        )
+        .save_aggregate_snapshot(context.clone())
         .await
         .unwrap();
 
-    let contexts = store
-        .load_events(id.as_str())
+    let stored_context = store
+        .load_aggregate_from_snapshot(&id)
         .await
         .unwrap();
 
-    // check stored events are correct
-    assert_eq!(
-        contexts,
-        vec![
-            ThisEventContext::new(
-                id.to_string(),
-                1,
-                events[0].clone(),
-                metadata.clone()
-            ),
-            ThisEventContext::new(
-                id.to_string(),
-                2,
-                events[1].clone(),
-                metadata.clone()
-            ),
-            ThisEventContext::new(
-                id.to_string(),
-                3,
-                events[2].clone(),
-                metadata.clone()
-            ),
-        ]
-    );
-
-    let context = store
-        .load_aggregate(id.as_str())
-        .await
-        .unwrap();
-
-    // check stored aggregate is correct
-    assert_eq!(
-        context,
-        ThisAggregateContext::new(
-            id.clone(),
-            Customer {
-                customer_id: "".to_string(),
-                name: "test_event_A".to_string(),
-                email: "test A".to_string(),
-                addresses: vec!["test B".to_string()]
-            },
-            3
-        )
-    );
+    assert_eq!(stored_context, context);
 
     Ok(())
 }
 
 #[test]
-fn test_with_snapshots() {
-    tokio_test::block_on(commit_and_load_events(true)).unwrap();
+fn test_save_load_events() {
+    tokio_test::block_on(check_save_load_events()).unwrap();
 }
 
 #[test]
-fn test_no_snapshots() {
-    tokio_test::block_on(commit_and_load_events(false)).unwrap();
+fn test_save_load_snapshots() {
+    tokio_test::block_on(check_save_load_snapshots()).unwrap();
 }

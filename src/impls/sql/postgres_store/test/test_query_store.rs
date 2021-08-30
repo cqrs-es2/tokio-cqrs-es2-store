@@ -7,78 +7,79 @@ use cqrs_es2::{
 };
 
 use crate::{
-    postgres_store::{
-        PostgresQueryStore,
-        QueryStorage,
-    },
-    repository::IQueryStore,
+    postgres_store::QueryStore,
+    IQueryStore,
 };
 
 use super::common::*;
 
-type ThisQueryStore = PostgresQueryStore<
+type ThisQueryStore = QueryStore<
     CustomerCommand,
     CustomerEvent,
     Customer,
     CustomerContactQuery,
 >;
 
-type ThisQueryContext = QueryContext<
-    CustomerCommand,
-    CustomerEvent,
-    CustomerContactQuery,
->;
-
-async fn commit_and_load_queries() -> Result<(), Error> {
+async fn check_save_load_queries() -> Result<(), Error> {
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(CONNECTION_STRING)
         .await
         .unwrap();
 
-    let storage = QueryStorage::new(pool);
-
-    let mut store = ThisQueryStore::new(storage);
+    let mut store = ThisQueryStore::new(pool);
 
     let id = uuid::Uuid::new_v4().to_string();
 
-    // loading nonexisting query returns default constructor
+    let stored_context = store.load_query(&id).await.unwrap();
+
     assert_eq!(
-        store.load(id.as_str()).await.unwrap(),
-        ThisQueryContext::new(id.to_string(), 0, Default::default())
+        stored_context,
+        QueryContext::new(id.to_string(), 0, Default::default())
     );
 
-    let context = ThisQueryContext::new(
+    let context = QueryContext::new(
         id.to_string(),
         1,
         CustomerContactQuery {
-            name: "".to_string(),
+            name: "test name".to_string(),
             email: "test@email.com".to_string(),
             latest_address: "one address".to_string(),
         },
     );
 
-    store.commit(context).await.unwrap();
+    store
+        .save_query(context.clone())
+        .await
+        .unwrap();
 
-    let stored_context = store.load(&id).await.unwrap();
+    let stored_context = store.load_query(&id).await.unwrap();
 
-    assert_eq!(
-        stored_context,
-        ThisQueryContext::new(
-            id.to_string(),
-            1,
-            CustomerContactQuery {
-                name: "".to_string(),
-                email: "test@email.com".to_string(),
-                latest_address: "one address".to_string(),
-            },
-        )
+    assert_eq!(stored_context, context);
+
+    let context = QueryContext::new(
+        id.to_string(),
+        2,
+        CustomerContactQuery {
+            name: "test name2".to_string(),
+            email: "test2@email.com".to_string(),
+            latest_address: "second address".to_string(),
+        },
     );
+
+    store
+        .save_query(context.clone())
+        .await
+        .unwrap();
+
+    let stored_context = store.load_query(&id).await.unwrap();
+
+    assert_eq!(stored_context, context);
 
     Ok(())
 }
 
 #[test]
-fn test_commit_and_load_queries() {
-    tokio_test::block_on(commit_and_load_queries()).unwrap();
+fn test_save_load_queries() {
+    tokio_test::block_on(check_save_load_queries()).unwrap();
 }

@@ -83,10 +83,8 @@
 //!
 //! A full async store example application is available [here](https://github.com/brgirgis/tokio-cqrs-es2-store/tree/master/examples/grpc).
 
-pub use async_store::*;
 pub use impls::*;
 pub use repository::*;
 
-mod async_store;
 mod impls;
 mod repository;

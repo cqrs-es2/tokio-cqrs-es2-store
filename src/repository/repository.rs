@@ -9,7 +9,9 @@ use std::{
 };
 
 use cqrs_es2::{
+    AggregateContext,
     Error,
+    EventContext,
     IAggregate,
     ICommand,
     IEvent,
@@ -41,6 +43,7 @@ pub struct Repository<
 > {
     store: ES,
     dispatchers: Vec<Box<dyn IEventDispatcher<C, E>>>,
+    with_snapshots: bool,
     _phantom: PhantomData<A>,
 }
 
@@ -56,14 +59,16 @@ impl<
     pub fn new(
         store: ES,
         dispatchers: Vec<Box<dyn IEventDispatcher<C, E>>>,
+        with_snapshots: bool,
     ) -> Self {
         let x = Self {
             store,
             dispatchers,
+            with_snapshots,
             _phantom: PhantomData,
         };
 
-        trace!("Created new Repository");
+        trace!("Created new async Repository");
 
         x
     }
@@ -126,24 +131,21 @@ impl<
             &metadata
         );
 
-        let aggregate_context = match self
-            .store
-            .load_aggregate(&aggregate_id)
-            .await
-        {
-            Ok(x) => x,
-            Err(e) => {
-                error!(
-                    "Loading aggregate '{}' returned error '{}'",
-                    &aggregate_id,
-                    e.to_string()
-                );
-                return Err(e);
-            },
-        };
+        let stored_context =
+            match self.load_aggregate(&aggregate_id).await {
+                Ok(x) => x,
+                Err(e) => {
+                    error!(
+                        "Loading aggregate '{}' returned error '{}'",
+                        &aggregate_id,
+                        e.to_string()
+                    );
+                    return Err(e);
+                },
+            };
 
-        let events = match aggregate_context
-            .aggregate
+        let events = match stored_context
+            .payload
             .handle(command.clone())
         {
             Ok(x) => x,
@@ -159,13 +161,12 @@ impl<
             },
         };
 
+        if events.len() == 0 {
+            return Ok(());
+        }
+
         let event_contexts = match self
-            .store
-            .commit(
-                events,
-                aggregate_context,
-                metadata.clone(),
-            )
+            .save_events(events, stored_context, metadata)
             .await
         {
             Ok(x) => x,
@@ -178,11 +179,9 @@ impl<
             },
         };
 
-        let dispatch_events = event_contexts.as_slice();
-
-        for processor in &mut self.dispatchers {
-            match processor
-                .dispatch(&aggregate_id, &dispatch_events)
+        for x in &mut self.dispatchers {
+            match x
+                .dispatch(&aggregate_id, &event_contexts)
                 .await
             {
                 Ok(_) => {},
@@ -191,17 +190,149 @@ impl<
                         "dispatcher returned error '{}'",
                         e.to_string()
                     );
-                    return Err(Error::new(e.to_string().as_str()));
+                    return Err(e);
                 },
             }
         }
 
         debug!(
-            "Successfully applied command '{:?}' to aggregate '{}' \
-             with metadata '{:?}'",
-            &command, &aggregate_id, &metadata
+            "Successfully applied command '{:?}' to aggregate '{}' ",
+            &command, &aggregate_id
         );
 
         Ok(())
+    }
+
+    async fn load_aggregate(
+        &mut self,
+        aggregate_id: &str,
+    ) -> Result<AggregateContext<C, E, A>, Error> {
+        match self.with_snapshots {
+            true => {
+                self.store
+                    .load_aggregate_from_snapshot(aggregate_id)
+                    .await
+            },
+            false => {
+                self.load_aggregate_from_events(aggregate_id)
+                    .await
+            },
+        }
+    }
+
+    async fn save_events(
+        &mut self,
+        events: Vec<E>,
+        stored_context: AggregateContext<C, E, A>,
+        metadata: HashMap<String, String>,
+    ) -> Result<Vec<EventContext<C, E>>, Error> {
+        let aggregate_id = stored_context.aggregate_id;
+
+        let contexts = self.wrap_events(
+            &aggregate_id,
+            stored_context.version,
+            events,
+            metadata,
+        );
+
+        match self.store.save_events(&contexts).await {
+            Ok(_) => {},
+            Err(e) => {
+                error!(
+                    "save events returned error '{}'",
+                    e.to_string()
+                );
+                return Err(e);
+            },
+        };
+
+        if self.with_snapshots {
+            let mut aggregate = stored_context.payload;
+
+            contexts
+                .iter()
+                .map(|x| &x.payload)
+                .for_each(|x| aggregate.apply(&x));
+
+            match self
+                .store
+                .save_aggregate_snapshot(AggregateContext::new(
+                    aggregate_id,
+                    contexts.last().unwrap().sequence,
+                    aggregate,
+                ))
+                .await
+            {
+                Ok(_) => {},
+                Err(e) => {
+                    error!(
+                        "save aggregate snapshot returned error '{}'",
+                        e.to_string()
+                    );
+                    return Err(e);
+                },
+            };
+        }
+
+        Ok(contexts)
+    }
+
+    /// Wrap a set of events with the additional metadata
+    /// needed for persistence and publishing
+    fn wrap_events(
+        &self,
+        aggregate_id: &str,
+        current_sequence: i64,
+        events: Vec<E>,
+        metadata: HashMap<String, String>,
+    ) -> Vec<EventContext<C, E>> {
+        let mut sequence = current_sequence;
+
+        let mut result = Vec::new();
+
+        for x in events {
+            sequence += 1;
+
+            result.push(EventContext::new(
+                aggregate_id.to_string(),
+                sequence,
+                x,
+                metadata.clone(),
+            ));
+        }
+
+        result
+    }
+
+    /// Load aggregate at current state from events stream
+    async fn load_aggregate_from_events(
+        &mut self,
+        aggregate_id: &str,
+    ) -> Result<AggregateContext<C, E, A>, Error> {
+        let contexts = self
+            .store
+            .load_events(&aggregate_id)
+            .await?;
+
+        if contexts.len() == 0 {
+            return Ok(AggregateContext::new(
+                aggregate_id.to_string(),
+                0,
+                A::default(),
+            ));
+        }
+
+        let mut aggregate = A::default();
+
+        contexts
+            .iter()
+            .map(|x| &x.payload)
+            .for_each(|x| aggregate.apply(&x));
+
+        Ok(AggregateContext::new(
+            aggregate_id.to_string(),
+            contexts.last().unwrap().sequence,
+            aggregate,
+        ))
     }
 }

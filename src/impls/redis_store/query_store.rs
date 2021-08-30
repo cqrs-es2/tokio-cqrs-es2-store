@@ -1,4 +1,8 @@
 use async_trait::async_trait;
+use log::{
+    debug,
+    trace,
+};
 use serde_json::json;
 use std::marker::PhantomData;
 
@@ -10,19 +14,21 @@ use redis::{
 
 use cqrs_es2::{
     Error,
+    EventContext,
     IAggregate,
     ICommand,
     IEvent,
     IQuery,
+    QueryContext,
 };
 
-use crate::async_store::{
-    IQueryStorage,
-    QueryStore,
+use crate::repository::{
+    IEventDispatcher,
+    IQueryStore,
 };
 
 /// Redis storage
-pub struct QueryStorage<
+pub struct QueryStore<
     C: ICommand,
     E: IEvent,
     A: IAggregate<C, E>,
@@ -37,14 +43,18 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-    > QueryStorage<C, E, A, Q>
+    > QueryStore<C, E, A, Q>
 {
     /// constructor
     pub fn new(conn: Connection) -> Self {
-        Self {
+        let x = Self {
             conn,
             _phantom: PhantomData,
-        }
+        };
+
+        trace!("Created new async Redis query store");
+
+        x
     }
 }
 
@@ -54,19 +64,26 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-    > IQueryStorage<C, E, A, Q> for QueryStorage<C, E, A, Q>
+    > IQueryStore<C, E, A, Q> for QueryStore<C, E, A, Q>
 {
-    async fn update_query(
+    /// saves the updated query
+    async fn save_query(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        query_type: &str,
-        version: i64,
-        payload: &Q,
+        context: QueryContext<C, E, Q>,
     ) -> Result<(), Error> {
+        let aggregate_type = A::aggregate_type();
+        let query_type = Q::query_type();
+
+        let aggregate_id = context.aggregate_id;
+
+        debug!(
+            "storing a new query for aggregate id '{}'",
+            &aggregate_id
+        );
+
         let r = json!({
-            "version": version,
-            "payload": payload,
+            "version": context.version,
+            "payload": context.payload,
         });
 
         let r = match serde_json::to_string(&r) {
@@ -76,7 +93,7 @@ impl<
                     format!(
                         "unable to serialize the query entry for
                           aggregate id {} with error: {}",
-                        &agg_id, e
+                        &aggregate_id, e
                     )
                     .as_str(),
                 ));
@@ -86,7 +103,7 @@ impl<
         let res: RedisResult<()> = self.conn.set(
             format!(
                 "queries;{};{};{}",
-                agg_type, agg_id, query_type
+                aggregate_type, aggregate_id, query_type
             ),
             r,
         );
@@ -98,7 +115,7 @@ impl<
                     format!(
                         "unable to insert new query {} for \
                          aggregate id {} with error: {}",
-                        query_type, &agg_id, e
+                        query_type, &aggregate_id, e
                     )
                     .as_str(),
                 ));
@@ -108,15 +125,23 @@ impl<
         Ok(())
     }
 
-    async fn select_query(
+    /// loads the most recent query
+    async fn load_query(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        query_type: &str,
-    ) -> Result<Option<(i64, Q)>, Error> {
+        aggregate_id: &str,
+    ) -> Result<QueryContext<C, E, Q>, Error> {
+        let aggregate_type = A::aggregate_type();
+        let query_type = Q::query_type();
+
+        trace!(
+            "loading query '{}' for aggregate id '{}'",
+            query_type,
+            aggregate_id
+        );
+
         let key = format!(
             "queries;{};{};{}",
-            agg_type, agg_id, query_type
+            aggregate_type, aggregate_id, query_type
         );
 
         let res: RedisResult<bool> = self.conn.exists(&key);
@@ -136,10 +161,21 @@ impl<
         };
 
         match res {
-            false => {
-                return Ok(None);
-            },
             true => {},
+            false => {
+                trace!(
+                    "returning default query '{}' for aggregate id \
+                     '{}'",
+                    query_type,
+                    aggregate_id
+                );
+
+                return Ok(QueryContext::new(
+                    aggregate_id.to_string(),
+                    0,
+                    Default::default(),
+                ));
+            },
         }
 
         let res: RedisResult<String> = self.conn.get(&key);
@@ -149,9 +185,9 @@ impl<
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "unable to load queries table for query {} \
-                         aggregate id {} with error: {}",
-                        query_type, &agg_id, e
+                        "unable to load queries table for key {} \
+                         with error: {}",
+                        &key, e
                     )
                     .as_str(),
                 ));
@@ -165,9 +201,8 @@ impl<
                     return Err(Error::new(
                         format!(
                             "unable to serialize entry from queries \
-                             table for aggregate id {} with error: \
-                             {}",
-                            &agg_id, e
+                             table for key {} with error: {}",
+                            &key, e
                         )
                         .as_str(),
                     ));
@@ -181,35 +216,53 @@ impl<
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "bad payload found in queries table for \
-                         aggregate id {} with error: {}",
-                        &agg_id, e
+                        "bad payload found in queries table for key \
+                         {} with error: {}",
+                        &key, e
                     )
                     .as_str(),
                 ));
             },
         };
 
-        let version: i64 = match serde_json::from_value(
+        let version = match serde_json::from_value(
             v.get("version").unwrap().clone(),
         ) {
             Ok(x) => x,
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "bad last_sequence found in events table \
-                         for aggregate id {} with error: {}",
-                        &agg_id, e
+                        "bad version found in queries table for key \
+                         {} with error: {}",
+                        &key, e
                     )
                     .as_str(),
                 ));
             },
         };
 
-        Ok(Some((version, payload)))
+        Ok(QueryContext::new(
+            aggregate_id.to_string(),
+            version,
+            payload,
+        ))
     }
 }
 
-/// convenient type alias for Redis query store
-pub type RedisQueryStore<C, E, A, Q> =
-    QueryStore<C, E, A, Q, QueryStorage<C, E, A, Q>>;
+#[async_trait]
+impl<
+        C: ICommand,
+        E: IEvent,
+        A: IAggregate<C, E>,
+        Q: IQuery<C, E>,
+    > IEventDispatcher<C, E> for QueryStore<C, E, A, Q>
+{
+    async fn dispatch(
+        &mut self,
+        aggregate_id: &str,
+        events: &Vec<EventContext<C, E>>,
+    ) -> Result<(), Error> {
+        self.dispatch_events(aggregate_id, events)
+            .await
+    }
+}

@@ -1,9 +1,10 @@
 use async_trait::async_trait;
-use serde_json::json;
-use std::{
-    collections::HashMap,
-    marker::PhantomData,
+use log::{
+    debug,
+    trace,
 };
+use serde_json::json;
+use std::marker::PhantomData;
 
 use redis::{
     Commands,
@@ -12,95 +13,128 @@ use redis::{
 };
 
 use cqrs_es2::{
+    AggregateContext,
     Error,
+    EventContext,
     IAggregate,
     ICommand,
     IEvent,
 };
 
-use crate::async_store::{
-    EventStore,
-    IEventStorage,
-};
+use crate::repository::IEventStore;
 
 /// Redis storage
-pub struct EventStorage<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
+pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     conn: Connection,
     _phantom: PhantomData<(C, E, A)>,
 }
 
 impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
-    EventStorage<C, E, A>
+    EventStore<C, E, A>
 {
     /// constructor
     pub fn new(conn: Connection) -> Self {
-        Self {
+        let x = Self {
             conn,
             _phantom: PhantomData,
-        }
+        };
+
+        trace!("Created new async Redis event store");
+
+        x
     }
 }
 
 #[async_trait]
-impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
-    IEventStorage<C, E, A> for EventStorage<C, E, A>
+impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
+    for EventStore<C, E, A>
 {
-    async fn insert_event(
+    /// Save new events
+    async fn save_events(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        sequence: i64,
-        payload: &E,
-        metadata: &HashMap<String, String>,
+        contexts: &Vec<EventContext<C, E>>,
     ) -> Result<(), Error> {
-        let r = json!({
-            "sequence": sequence,
-            "payload": payload,
-            "metadata": metadata
-        });
+        if contexts.len() == 0 {
+            trace!("Skip saving zero contexts");
+            return Ok(());
+        }
 
-        let r = match serde_json::to_string(&r) {
-            Ok(x) => x,
-            Err(e) => {
-                return Err(Error::new(
-                    format!(
-                        "unable to serialize the event entry for
-                          aggregate id {} with error: {}",
-                        &agg_id, e
-                    )
-                    .as_str(),
-                ));
-            },
-        };
+        let aggregate_type = A::aggregate_type();
 
-        let res: RedisResult<()> = self.conn.rpush(
-            format!("events;{};{}", agg_type, agg_id),
-            r,
+        let aggregate_id = contexts
+            .first()
+            .unwrap()
+            .aggregate_id
+            .clone();
+
+        debug!(
+            "storing '{}' new events for aggregate id '{}'",
+            contexts.len(),
+            &aggregate_id
         );
 
-        match res {
-            Ok(_) => {},
-            Err(e) => {
-                return Err(Error::new(
-                    format!(
-                        "unable to insert new event for aggregate \
-                         id {} with error: {}",
-                        &agg_id, e
-                    )
-                    .as_str(),
-                ));
-            },
-        };
+        let key = format!(
+            "events;{};{}",
+            aggregate_type, &aggregate_id
+        );
+
+        for context in contexts {
+            let r = json!({
+                "sequence": context.sequence,
+                "payload": context.payload,
+                "metadata": context.metadata
+            });
+
+            let r = match serde_json::to_string(&r) {
+                Ok(x) => x,
+                Err(e) => {
+                    return Err(Error::new(
+                        format!(
+                            "unable to serialize the event entry for
+                              aggregate id {} with error: {}",
+                            &aggregate_id, e
+                        )
+                        .as_str(),
+                    ));
+                },
+            };
+
+            let res: RedisResult<()> = self.conn.rpush(&key, r);
+
+            match res {
+                Ok(_) => {},
+                Err(e) => {
+                    return Err(Error::new(
+                        format!(
+                            "unable to insert new event for \
+                             aggregate id {} with error: {}",
+                            &aggregate_id, e
+                        )
+                        .as_str(),
+                    ));
+                },
+            };
+        }
 
         Ok(())
     }
 
-    async fn select_events(
+    /// Load all events for a particular `aggregate_id`
+    async fn load_events(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-    ) -> Result<Vec<(usize, E, HashMap<String, String>)>, Error> {
-        let key = format!("events;{};{}", agg_type, agg_id);
+        aggregate_id: &str,
+    ) -> Result<Vec<EventContext<C, E>>, Error> {
+        let aggregate_type = A::aggregate_type();
+
+        trace!(
+            "loading events for aggregate id '{}'",
+            aggregate_id
+        );
+
+        let key = format!(
+            "events;{};{}",
+            aggregate_type, aggregate_id
+        );
 
         let res: RedisResult<bool> = self.conn.exists(&key);
 
@@ -135,7 +169,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                     format!(
                         "unable to load events table for aggregate \
                          id {} with error: {}",
-                        &agg_id, e
+                        aggregate_id, e
                     )
                     .as_str(),
                 ));
@@ -154,7 +188,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                                 "unable to serialize entry from \
                                  events table for aggregate id {} \
                                  with error: {}",
-                                &agg_id, e
+                                aggregate_id, e
                             )
                             .as_str(),
                         ));
@@ -170,7 +204,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                         format!(
                             "bad payload found in events table for \
                              aggregate id {} with error: {}",
-                            &agg_id, e
+                            aggregate_id, e
                         )
                         .as_str(),
                     ));
@@ -186,14 +220,14 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                         format!(
                             "bad metadata found in events table for \
                              aggregate id {} with error: {}",
-                            &agg_id, e
+                            aggregate_id, e
                         )
                         .as_str(),
                     ));
                 },
             };
 
-            let sequence: i64 = match serde_json::from_value(
+            let sequence = match serde_json::from_value(
                 v.get("sequence").unwrap().clone(),
             ) {
                 Ok(x) => x,
@@ -202,30 +236,41 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                         format!(
                             "bad sequence found in events table for \
                              aggregate id {} with error: {}",
-                            &agg_id, e
+                            aggregate_id, e
                         )
                         .as_str(),
                     ));
                 },
             };
 
-            result.push((sequence as usize, payload, metadata));
+            result.push(EventContext::new(
+                aggregate_id.to_string(),
+                sequence,
+                payload,
+                metadata,
+            ));
         }
 
         Ok(result)
     }
 
-    async fn update_snapshot(
+    /// save a new aggregate snapshot
+    async fn save_aggregate_snapshot(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        last_sequence: i64,
-        payload: &A,
-        _current_sequence: usize,
+        context: AggregateContext<C, E, A>,
     ) -> Result<(), Error> {
+        let aggregate_type = A::aggregate_type();
+
+        let aggregate_id = context.aggregate_id;
+
+        debug!(
+            "storing a new snapshot for aggregate id '{}'",
+            &aggregate_id
+        );
+
         let r = json!({
-            "last_sequence": last_sequence,
-            "payload": payload,
+            "version": context.version,
+            "payload": context.payload,
         });
 
         let r = match serde_json::to_string(&r) {
@@ -235,7 +280,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                     format!(
                         "unable to serialize the snapshot entry for
                           aggregate id {} with error: {}",
-                        &agg_id, e
+                        &aggregate_id, e
                     )
                     .as_str(),
                 ));
@@ -243,7 +288,10 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
         };
 
         let res: RedisResult<()> = self.conn.set(
-            format!("snapshots;{};{}", agg_type, agg_id),
+            format!(
+                "snapshots;{};{}",
+                aggregate_type, &aggregate_id
+            ),
             r,
         );
 
@@ -254,7 +302,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                     format!(
                         "unable to insert new snapshot for \
                          aggregate id {} with error: {}",
-                        &agg_id, e
+                        &aggregate_id, e
                     )
                     .as_str(),
                 ));
@@ -264,12 +312,22 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
         Ok(())
     }
 
-    async fn select_snapshot(
+    /// Load aggregate at current state from snapshots
+    async fn load_aggregate_from_snapshot(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-    ) -> Result<Option<(usize, A)>, Error> {
-        let key = format!("snapshots;{};{}", agg_type, agg_id);
+        aggregate_id: &str,
+    ) -> Result<AggregateContext<C, E, A>, Error> {
+        let aggregate_type = A::aggregate_type();
+
+        trace!(
+            "loading snapshot for aggregate id '{}'",
+            aggregate_id
+        );
+
+        let key = format!(
+            "snapshots;{};{}",
+            aggregate_type, aggregate_id
+        );
 
         let res: RedisResult<bool> = self.conn.exists(&key);
 
@@ -288,10 +346,20 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
         };
 
         match res {
-            false => {
-                return Ok(None);
-            },
             true => {},
+            false => {
+                trace!(
+                    "returning default aggregate for aggregate id \
+                     '{}'",
+                    aggregate_id
+                );
+
+                return Ok(AggregateContext::new(
+                    aggregate_id.to_string(),
+                    0,
+                    A::default(),
+                ));
+            },
         }
 
         let res: RedisResult<String> = self.conn.get(&key);
@@ -301,9 +369,9 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "unable to load snapshots table for \
-                         aggregate id {} with error: {}",
-                        &agg_id, e
+                        "unable to load snapshots table for key {} \
+                         with error: {}",
+                        &key, e
                     )
                     .as_str(),
                 ));
@@ -317,9 +385,9 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
                     return Err(Error::new(
                         format!(
                             "unable to serialize entry from \
-                             snapshots table for aggregate id {} \
-                             with error: {}",
-                            &agg_id, e
+                             snapshots table for key {} with error: \
+                             {}",
+                            &key, e
                         )
                         .as_str(),
                     ));
@@ -333,35 +401,35 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "bad payload found in events table for \
-                         aggregate id {} with error: {}",
-                        &agg_id, e
+                        "bad payload found in events table for key \
+                         {} with error: {}",
+                        &key, e
                     )
                     .as_str(),
                 ));
             },
         };
 
-        let last_sequence: i64 = match serde_json::from_value(
-            v.get("last_sequence").unwrap().clone(),
+        let version = match serde_json::from_value(
+            v.get("version").unwrap().clone(),
         ) {
             Ok(x) => x,
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "bad last_sequence found in events table \
-                         for aggregate id {} with error: {}",
-                        &agg_id, e
+                        "bad version found in events table for key \
+                         {} with error: {}",
+                        &key, e
                     )
                     .as_str(),
                 ));
             },
         };
 
-        Ok(Some((last_sequence as usize, payload)))
+        Ok(AggregateContext::new(
+            aggregate_id.to_string(),
+            version,
+            payload,
+        ))
     }
 }
-
-/// convenient type alias for Redis event store
-pub type RedisEventStore<C, E, A> =
-    EventStore<C, E, A, EventStorage<C, E, A>>;

@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use log::debug;
+use log::{
+    debug,
+    trace,
+};
 use std::{
     collections::HashMap,
-    marker::PhantomData,
     sync::{
         Arc,
         RwLock,
@@ -23,29 +25,45 @@ use crate::repository::IEventStore;
 type LockedEventContextMap<C, E> =
     RwLock<HashMap<String, Vec<EventContext<C, E>>>>;
 
+type LockedAggregateContextMap<C, E, A> =
+    RwLock<HashMap<String, AggregateContext<C, E, A>>>;
+
 ///  Simple memory store only useful for testing purposes
 pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
     events: Arc<LockedEventContextMap<C, E>>,
-    _phantom: PhantomData<A>,
+    snapshots: Arc<LockedAggregateContextMap<C, E, A>>,
+}
+
+impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
+    EventStore<C, E, A>
+{
+    /// Constructor
+    pub fn new(
+        events: Arc<LockedEventContextMap<C, E>>,
+        snapshots: Arc<LockedAggregateContextMap<C, E, A>>,
+    ) -> Self {
+        let x = Self { events, snapshots };
+
+        trace!(
+            "Created new async memory event store from passed Arcs"
+        );
+
+        x
+    }
 }
 
 impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> Default
     for EventStore<C, E, A>
 {
     fn default() -> Self {
-        Self {
+        let x = Self {
             events: Default::default(),
-            _phantom: PhantomData,
-        }
-    }
-}
+            snapshots: Default::default(),
+        };
 
-impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
-    EventStore<C, E, A>
-{
-    /// Get a shared copy of the events stored within the event store.
-    pub fn get_events(&self) -> Arc<LockedEventContextMap<C, E>> {
-        Arc::clone(&self.events)
+        trace!("Created default async memory event store");
+
+        x
     }
 }
 
@@ -53,88 +71,114 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
 impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
     for EventStore<C, E, A>
 {
+    /// Save new events
+    async fn save_events(
+        &mut self,
+        contexts: &Vec<EventContext<C, E>>,
+    ) -> Result<(), Error> {
+        if contexts.len() == 0 {
+            trace!("Skip saving zero contexts");
+            return Ok(());
+        }
+
+        let aggregate_id = contexts
+            .first()
+            .unwrap()
+            .aggregate_id
+            .clone();
+
+        debug!(
+            "storing '{}' new events for aggregate id '{}'",
+            contexts.len(),
+            &aggregate_id
+        );
+
+        let mut new_contexts =
+            self.load_events(&aggregate_id).await?;
+
+        contexts
+            .iter()
+            .for_each(|x| new_contexts.push(x.clone()));
+
+        // uninteresting unwrap: this is not a struct for production
+        // use
+        let mut map = self.events.write().unwrap();
+        map.insert(aggregate_id, new_contexts);
+
+        Ok(())
+    }
+
+    /// Load all events for a particular `aggregate_id`
     async fn load_events(
         &mut self,
         aggregate_id: &str,
     ) -> Result<Vec<EventContext<C, E>>, Error> {
-        // uninteresting unwrap: this will not be used in production,
-        // for tests only
-        let event_map = self.events.read().unwrap();
-        let mut committed_events = Vec::new();
-
-        match event_map.get(aggregate_id) {
-            None => {},
-            Some(events) => {
-                for event in events {
-                    committed_events.push(event.clone());
-                }
-            },
-        };
-
-        Ok(committed_events)
-    }
-
-    async fn load_aggregate(
-        &mut self,
-        aggregate_id: &str,
-    ) -> Result<AggregateContext<C, E, A>, Error> {
-        let committed_events =
-            match self.load_events(&aggregate_id).await {
-                Ok(x) => x,
-                Err(e) => {
-                    return Err(e);
-                },
-            };
-
-        let mut aggregate = A::default();
-        let mut current_sequence = 0;
-
-        for envelope in committed_events {
-            current_sequence = envelope.sequence;
-            let event = envelope.payload;
-            aggregate.apply(&event);
-        }
-
-        Ok(AggregateContext::new(
-            aggregate_id.to_string(),
-            aggregate,
-            current_sequence,
-        ))
-    }
-
-    async fn commit(
-        &mut self,
-        events: Vec<E>,
-        context: AggregateContext<C, E, A>,
-        metadata: HashMap<String, String>,
-    ) -> Result<Vec<EventContext<C, E>>, Error> {
-        if events.len() == 0 {
-            return Ok(Vec::default());
-        }
-
-        let id = context.aggregate_id;
-
-        debug!(
-            "storing: {} new events for aggregate ID '{}'",
-            events.len(),
-            &id
+        trace!(
+            "loading events for aggregate id '{}'",
+            aggregate_id
         );
 
-        let current_sequence = context.current_sequence;
-        let wrapped_events =
-            self.wrap_events(&id, current_sequence, events, metadata);
+        // uninteresting unwrap: this will not be used in production,
+        // for tests only
 
-        let mut new_events = self.load_events(&id).await?;
-
-        for event in &wrapped_events {
-            new_events.push(event.clone());
+        match self
+            .events
+            .read()
+            .unwrap()
+            .get(aggregate_id)
+        {
+            None => Ok(Vec::new()),
+            Some(x) => Ok(x.clone()),
         }
+    }
+
+    /// save a new aggregate snapshot
+    async fn save_aggregate_snapshot(
+        &mut self,
+        context: AggregateContext<C, E, A>,
+    ) -> Result<(), Error> {
+        let aggregate_id = context.aggregate_id.clone();
+
+        debug!(
+            "storing a new snapshot for aggregate id '{}'",
+            &aggregate_id
+        );
 
         // uninteresting unwrap: this is not a struct for production
         // use
-        let mut event_map = self.events.write().unwrap();
-        event_map.insert(id, new_events);
+        let mut map = self.snapshots.write().unwrap();
+        map.insert(aggregate_id, context);
 
-        Ok(wrapped_events)
+        Ok(())
+    }
+
+    /// Load aggregate at current state from snapshots
+    async fn load_aggregate_from_snapshot(
+        &mut self,
+        aggregate_id: &str,
+    ) -> Result<AggregateContext<C, E, A>, Error> {
+        trace!(
+            "loading snapshot for aggregate id '{}'",
+            aggregate_id
+        );
+
+        // uninteresting unwrap: this will not be used in production,
+        // for tests only
+
+        match self
+            .snapshots
+            .read()
+            .unwrap()
+            .get(aggregate_id)
+        {
+            None => {
+                Ok(AggregateContext::new(
+                    aggregate_id.to_string(),
+                    0,
+                    A::default(),
+                ))
+            },
+            Some(x) => Ok(x.clone()),
+        }
     }
 }

@@ -1,13 +1,13 @@
 //!
 //! MongoDB store
 
-pub use event_storage::*;
-pub use query_storage::*;
+pub use event_store::*;
+pub use query_store::*;
 
 mod event_document;
-mod event_storage;
+mod event_store;
 mod query_document;
-mod query_storage;
+mod query_store;
 mod snapshot_document;
 
 mod test;

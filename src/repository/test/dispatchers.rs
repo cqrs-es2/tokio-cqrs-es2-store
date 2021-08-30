@@ -24,7 +24,7 @@ impl CustomDispatcher {
             RwLock<Vec<EventContext<CustomerCommand, CustomerEvent>>>,
         >
     ) -> Self {
-        CustomDispatcher { events }
+        Self { events }
     }
 }
 
@@ -35,7 +35,7 @@ impl IEventDispatcher<CustomerCommand, CustomerEvent>
     async fn dispatch(
         &mut self,
         _aggregate_id: &str,
-        events: &[EventContext<CustomerCommand, CustomerEvent>],
+        events: &Vec<EventContext<CustomerCommand, CustomerEvent>>,
     ) -> Result<(), Error> {
         for event in events {
             let mut event_list = self.events.write().unwrap();

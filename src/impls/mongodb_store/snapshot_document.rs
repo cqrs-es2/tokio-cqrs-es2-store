@@ -8,6 +8,6 @@ use std::fmt::Debug;
 pub struct SnapshotDocument {
     pub aggregate_type: String,
     pub aggregate_id: String,
-    pub last_sequence: i64,
+    pub version: i64,
     pub payload: String,
 }

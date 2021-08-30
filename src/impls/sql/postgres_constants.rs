@@ -37,7 +37,7 @@ pub static INSERT_SNAPSHOT: &str = "
 INSERT INTO
     snapshots 
     (
-        last_sequence,
+        version,
         payload,
         aggregate_type,
         aggregate_id
@@ -55,7 +55,7 @@ pub static UPDATE_SNAPSHOT: &str = "
 UPDATE
     snapshots
 SET
-    last_sequence = $1,
+    version = $1,
     payload = $2
 WHERE
     aggregate_type = $3
@@ -65,7 +65,7 @@ WHERE
 
 pub static SELECT_SNAPSHOT: &str = "
 SELECT
-    last_sequence,
+    version,
     payload
 FROM
     snapshots

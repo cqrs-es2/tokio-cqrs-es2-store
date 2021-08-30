@@ -5,7 +5,10 @@ use std::{
 
 use cqrs_es2::{
     example_impl::*,
+    AggregateContext,
     Error,
+    EventContext,
+    QueryContext,
 };
 
 use crate::{
@@ -28,20 +31,24 @@ type ThisQueryStore = QueryStore<
     CustomerContactQuery,
 >;
 
-fn metadata() -> HashMap<String, String> {
+fn get_metadata() -> HashMap<String, String> {
     let now = "2021-03-18T12:32:45.930Z".to_string();
     let mut metadata = HashMap::new();
     metadata.insert("time".to_string(), now);
     metadata
 }
 
-async fn check_repository_api() -> Result<(), Error> {
-    let event_store = ThisEventStore::default();
-    let stored_events = event_store.get_events();
-
-    let query_store = ThisQueryStore::default();
-
+async fn check_execute(with_snapshots: bool) -> Result<(), Error> {
+    let events = Default::default();
+    let snapshots = Default::default();
+    let queries = Default::default();
     let dispatched_events = Default::default();
+
+    let event_store = ThisEventStore::new(
+        Arc::clone(&events),
+        Arc::clone(&snapshots),
+    );
+    let query_store = ThisQueryStore::new(Arc::clone(&queries));
     let custom_dispatcher =
         CustomDispatcher::new(Arc::clone(&dispatched_events));
 
@@ -51,83 +58,272 @@ async fn check_repository_api() -> Result<(), Error> {
             Box::new(query_store),
             Box::new(custom_dispatcher),
         ],
+        with_snapshots,
     );
 
-    let uuid = uuid::Uuid::new_v4().to_string();
-    let id = uuid.clone();
-    let metadata = metadata();
+    let id = uuid::Uuid::new_v4().to_string();
+    let metadata = get_metadata();
+
     repo.execute_with_metadata(
         &id,
         CustomerCommand::AddAddress(AddAddress {
-            new_address: uuid.clone(),
+            new_address: "one new address".to_string(),
         }),
-        metadata,
+        metadata.clone(),
     )
     .await
-    .unwrap_or_default();
+    .unwrap();
 
-    assert_eq!(1, stored_events.read().unwrap().len());
-    assert_eq!(
+    let mut events_context_0: Vec<
+        EventContext<CustomerCommand, CustomerEvent>,
+    > = vec![EventContext::new(
+        id.clone(),
         1,
-        dispatched_events.read().unwrap().len()
-    );
-
-    let test = "TEST_A";
-    let id = uuid.clone();
-    repo.execute(
-        &id,
-        CustomerCommand::AddAddress(AddAddress {
-            new_address: test.to_string(),
+        CustomerEvent::AddressUpdated(AddressUpdated {
+            new_address: "one new address".to_string(),
         }),
-    )
-    .await
-    .unwrap_or_default();
+        metadata.clone(),
+    )];
 
     assert_eq!(
-        2,
-        dispatched_events.read().unwrap().len()
+        events
+            .read()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone(),
+        events_context_0.clone()
     );
-    let stored_event_count = stored_events
-        .read()
-        .unwrap()
-        .get(uuid.clone().as_str())
-        .unwrap()
-        .len();
-    assert_eq!(2, stored_event_count);
 
-    let id = uuid.clone();
-    let err = repo
-        .execute(
-            &id,
-            CustomerCommand::AddAddress(AddAddress {
-                new_address: test.to_string(),
+    if with_snapshots {
+        assert_eq!(
+            snapshots
+                .read()
+                .unwrap()
+                .get(&id)
+                .unwrap()
+                .clone(),
+            AggregateContext::new(
+                id.clone(),
+                1,
+                Customer {
+                    customer_id: Default::default(),
+                    name: Default::default(),
+                    email: Default::default(),
+                    addresses: vec!["one new address".to_string()]
+                }
+            )
+        );
+    }
+
+    assert_eq!(
+        queries
+            .read()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone(),
+        QueryContext::new(
+            id.clone(),
+            1,
+            CustomerContactQuery {
+                name: Default::default(),
+                email: Default::default(),
+                latest_address: "one new address".to_string()
+            },
+        )
+    );
+
+    assert_eq!(
+        dispatched_events
+            .read()
+            .unwrap()
+            .clone(),
+        events_context_0.clone()
+    );
+
+    repo.execute_with_metadata(
+        &id,
+        CustomerCommand::AddCustomerName(AddCustomerName {
+            changed_name: "some name".to_string(),
+        }),
+        metadata.clone(),
+    )
+    .await
+    .unwrap();
+
+    repo.execute_with_metadata(
+        &id,
+        CustomerCommand::UpdateEmail(UpdateEmail {
+            new_email: "e@mail.com".to_string(),
+        }),
+        metadata.clone(),
+    )
+    .await
+    .unwrap();
+
+    let mut events_context_1: Vec<
+        EventContext<CustomerCommand, CustomerEvent>,
+    > = vec![
+        EventContext::new(
+            id.clone(),
+            2,
+            CustomerEvent::NameAdded(NameAdded {
+                changed_name: "some name".to_string(),
             }),
+            metadata.clone(),
+        ),
+        EventContext::new(
+            id.clone(),
+            3,
+            CustomerEvent::EmailUpdated(EmailUpdated {
+                new_email: "e@mail.com".to_string(),
+            }),
+            metadata.clone(),
+        ),
+    ];
+
+    events_context_0.append(&mut events_context_1);
+
+    assert_eq!(
+        events
+            .read()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone(),
+        events_context_0.clone()
+    );
+
+    if with_snapshots {
+        assert_eq!(
+            snapshots
+                .read()
+                .unwrap()
+                .get(&id)
+                .unwrap()
+                .clone(),
+            AggregateContext::new(
+                id.clone(),
+                3,
+                Customer {
+                    customer_id: Default::default(),
+                    name: "some name".to_string(),
+                    email: "e@mail.com".to_string(),
+                    addresses: vec!["one new address".to_string()]
+                }
+            )
+        );
+    }
+
+    assert_eq!(
+        queries
+            .read()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone(),
+        QueryContext::new(
+            id.clone(),
+            3,
+            CustomerContactQuery {
+                name: "some name".to_string(),
+                email: "e@mail.com".to_string(),
+                latest_address: "one new address".to_string()
+            },
+        )
+    );
+
+    assert_eq!(
+        dispatched_events
+            .read()
+            .unwrap()
+            .clone(),
+        events_context_0.clone()
+    );
+
+    let err = repo
+        .execute_with_metadata(
+            &id,
+            CustomerCommand::AddCustomerName(AddCustomerName {
+                changed_name: "another name".to_string(),
+            }),
+            metadata.clone(),
         )
         .await
         .unwrap_err();
+
     assert_eq!(
-        Error::new(
-            "this address has already been added for this customer"
-        ),
+        Error::new("a name has already been added for this customer"),
         err
     );
 
     assert_eq!(
-        2,
-        dispatched_events.read().unwrap().len()
+        events
+            .read()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone(),
+        events_context_0.clone()
     );
-    let stored_event_count = stored_events
-        .read()
-        .unwrap()
-        .get(uuid.clone().as_str())
-        .unwrap()
-        .len();
-    assert_eq!(2, stored_event_count);
+
+    if with_snapshots {
+        assert_eq!(
+            snapshots
+                .read()
+                .unwrap()
+                .get(&id)
+                .unwrap()
+                .clone(),
+            AggregateContext::new(
+                id.clone(),
+                3,
+                Customer {
+                    customer_id: Default::default(),
+                    name: "some name".to_string(),
+                    email: "e@mail.com".to_string(),
+                    addresses: vec!["one new address".to_string()]
+                }
+            )
+        );
+    }
+
+    assert_eq!(
+        queries
+            .read()
+            .unwrap()
+            .get(&id)
+            .unwrap()
+            .clone(),
+        QueryContext::new(
+            id.clone(),
+            3,
+            CustomerContactQuery {
+                name: "some name".to_string(),
+                email: "e@mail.com".to_string(),
+                latest_address: "one new address".to_string()
+            },
+        )
+    );
+
+    assert_eq!(
+        dispatched_events
+            .read()
+            .unwrap()
+            .clone(),
+        events_context_0.clone()
+    );
 
     Ok(())
 }
 
 #[test]
-fn test_repository_api() {
-    tokio_test::block_on(check_repository_api()).unwrap();
+fn test_execute_no_snapshots() {
+    tokio_test::block_on(check_execute(false)).unwrap();
+}
+
+#[test]
+fn test_execute_with_snapshots() {
+    tokio_test::block_on(check_execute(true)).unwrap();
 }

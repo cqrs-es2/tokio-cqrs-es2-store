@@ -1,21 +1,25 @@
-use log::info;
-
 use async_trait::async_trait;
+use log::{
+    debug,
+    trace,
+};
 use std::marker::PhantomData;
 
 use sqlx::sqlite::SqlitePool;
 
 use cqrs_es2::{
     Error,
+    EventContext,
     IAggregate,
     ICommand,
     IEvent,
     IQuery,
+    QueryContext,
 };
 
-use crate::async_store::{
-    IQueryStorage,
-    QueryStore,
+use crate::repository::{
+    IEventDispatcher,
+    IQueryStore,
 };
 
 use super::super::mysql_constants::*;
@@ -34,7 +38,7 @@ queries
 ";
 
 /// SQLite storage
-pub struct QueryStorage<
+pub struct QueryStore<
     C: ICommand,
     E: IEvent,
     A: IAggregate<C, E>,
@@ -49,7 +53,7 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-    > QueryStorage<C, E, A, Q>
+    > QueryStore<C, E, A, Q>
 {
     /// constructor
     pub fn new(pool: SqlitePool) -> Self {
@@ -68,7 +72,7 @@ impl<
             Err(e) => return Err(Error::new(e.to_string().as_str())),
         };
 
-        info!(
+        debug!(
             "Created queries table with '{}' affected rows",
             res.rows_affected()
         );
@@ -83,31 +87,38 @@ impl<
         E: IEvent,
         A: IAggregate<C, E>,
         Q: IQuery<C, E>,
-    > IQueryStorage<C, E, A, Q> for QueryStorage<C, E, A, Q>
+    > IQueryStore<C, E, A, Q> for QueryStore<C, E, A, Q>
 {
-    async fn update_query(
+    /// saves the updated query
+    async fn save_query(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        query_type: &str,
-        version: i64,
-        payload: &Q,
+        context: QueryContext<C, E, Q>,
     ) -> Result<(), Error> {
         self.create_query_table().await?;
 
-        let sql = match version {
+        let aggregate_type = A::aggregate_type();
+        let query_type = Q::query_type();
+
+        let aggregate_id = context.aggregate_id;
+
+        debug!(
+            "storing a new query for aggregate id '{}'",
+            &aggregate_id
+        );
+
+        let sql = match context.version {
             1 => INSERT_QUERY,
             _ => UPDATE_QUERY,
         };
 
-        let payload = match serde_json::to_value(&payload) {
+        let payload = match serde_json::to_value(context.payload) {
             Ok(x) => x,
             Err(e) => {
                 return Err(Error::new(
                     format!(
                         "unable to serialize the payload of query \
                          '{}' with id: '{}', error: {}",
-                        &query_type, &agg_id, e,
+                        &query_type, &aggregate_id, e,
                     )
                     .as_str(),
                 ));
@@ -115,10 +126,10 @@ impl<
         };
 
         match sqlx::query(sql)
-            .bind(version)
+            .bind(context.version)
             .bind(&payload)
-            .bind(&agg_type)
-            .bind(&agg_id)
+            .bind(&aggregate_type)
+            .bind(&aggregate_id)
             .bind(&query_type)
             .execute(&self.pool)
             .await
@@ -129,7 +140,7 @@ impl<
                         format!(
                             "insert/update query failed for \
                              aggregate id {}",
-                            &agg_id
+                            &aggregate_id
                         )
                         .as_str(),
                     ));
@@ -140,7 +151,7 @@ impl<
                     format!(
                         "unable to insert/update query for \
                          aggregate id {} with error: {}",
-                        &agg_id, e
+                        &aggregate_id, e
                     )
                     .as_str(),
                 ));
@@ -150,18 +161,26 @@ impl<
         Ok(())
     }
 
-    async fn select_query(
+    /// loads the most recent query
+    async fn load_query(
         &mut self,
-        agg_type: &str,
-        agg_id: &str,
-        query_type: &str,
-    ) -> Result<Option<(i64, Q)>, Error> {
+        aggregate_id: &str,
+    ) -> Result<QueryContext<C, E, Q>, Error> {
         self.create_query_table().await?;
+
+        let aggregate_type = A::aggregate_type();
+        let query_type = Q::query_type();
+
+        trace!(
+            "loading query '{}' for aggregate id '{}'",
+            query_type,
+            aggregate_id
+        );
 
         let rows: Vec<(i64, serde_json::Value)> =
             match sqlx::query_as(SELECT_QUERY)
-                .bind(&agg_type)
-                .bind(&agg_id)
+                .bind(&aggregate_type)
+                .bind(&aggregate_id)
                 .bind(&query_type)
                 .fetch_all(&self.pool)
                 .await
@@ -172,7 +191,7 @@ impl<
                         format!(
                             "unable to load queries table for query \
                              '{}' with id: '{}', error: {}",
-                            &query_type, &agg_id, e,
+                            &query_type, &aggregate_id, e,
                         )
                         .as_str(),
                     ));
@@ -180,7 +199,17 @@ impl<
             };
 
         if rows.len() == 0 {
-            return Ok(None);
+            trace!(
+                "returning default query '{}' for aggregate id '{}'",
+                query_type,
+                aggregate_id
+            );
+
+            return Ok(QueryContext::new(
+                aggregate_id.to_string(),
+                0,
+                Default::default(),
+            ));
         }
 
         let row = rows[0].clone();
@@ -192,17 +221,35 @@ impl<
                     format!(
                         "bad payload found in queries table for \
                          query '{}' with id: '{}', error: {}",
-                        &query_type, &agg_id, e,
+                        &query_type, &aggregate_id, e,
                     )
                     .as_str(),
                 ));
             },
         };
 
-        Ok(Some((row.0, payload)))
+        Ok(QueryContext::new(
+            aggregate_id.to_string(),
+            row.0,
+            payload,
+        ))
     }
 }
 
-/// convenient type alias for SQLite query store
-pub type SqliteQueryStore<C, E, A, Q> =
-    QueryStore<C, E, A, Q, QueryStorage<C, E, A, Q>>;
+#[async_trait]
+impl<
+        C: ICommand,
+        E: IEvent,
+        A: IAggregate<C, E>,
+        Q: IQuery<C, E>,
+    > IEventDispatcher<C, E> for QueryStore<C, E, A, Q>
+{
+    async fn dispatch(
+        &mut self,
+        aggregate_id: &str,
+        events: &Vec<EventContext<C, E>>,
+    ) -> Result<(), Error> {
+        self.dispatch_events(aggregate_id, events)
+            .await
+    }
+}

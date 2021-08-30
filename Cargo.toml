@@ -57,7 +57,7 @@ serde_json = "^1.0.66"
 async-trait = "^0.1"
 
 # CQRS framework
-cqrs-es2 = { version = "0.8.0" }
+cqrs-es2 = { path = "../cqrs-es2" }
 
 # sqlx
 sqlx = { version = "0.5.6", features = [

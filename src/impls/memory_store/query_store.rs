@@ -1,4 +1,8 @@
 use async_trait::async_trait;
+use log::{
+    debug,
+    trace,
+};
 use std::{
     collections::HashMap,
     marker::PhantomData,
@@ -33,8 +37,30 @@ pub struct QueryStore<
     A: IAggregate<C, E>,
     Q: IQuery<C, E>,
 > {
-    events: Arc<LockedQueryContextMap<C, E, Q>>,
+    queries: Arc<LockedQueryContextMap<C, E, Q>>,
     _phantom: PhantomData<A>,
+}
+
+impl<
+        C: ICommand,
+        E: IEvent,
+        A: IAggregate<C, E>,
+        Q: IQuery<C, E>,
+    > QueryStore<C, E, A, Q>
+{
+    /// Constructor
+    pub fn new(queries: Arc<LockedQueryContextMap<C, E, Q>>) -> Self {
+        let x = Self {
+            queries,
+            _phantom: PhantomData,
+        };
+
+        trace!(
+            "Created new async memory query store from passed Arcs"
+        );
+
+        x
+    }
 }
 
 impl<
@@ -45,23 +71,14 @@ impl<
     > Default for QueryStore<C, E, A, Q>
 {
     fn default() -> Self {
-        Self {
-            events: Default::default(),
+        let x = Self {
+            queries: Default::default(),
             _phantom: PhantomData,
-        }
-    }
-}
+        };
 
-impl<
-        C: ICommand,
-        E: IEvent,
-        A: IAggregate<C, E>,
-        Q: IQuery<C, E>,
-    > QueryStore<C, E, A, Q>
-{
-    /// Get a shared copy of the events stored within the event store.
-    pub fn get_events(&self) -> Arc<LockedQueryContextMap<C, E, Q>> {
-        Arc::clone(&self.events)
+        trace!("Created default async memory query store");
+
+        x
     }
 }
 
@@ -73,16 +90,45 @@ impl<
         Q: IQuery<C, E>,
     > IQueryStore<C, E, A, Q> for QueryStore<C, E, A, Q>
 {
-    /// loads the query
-    async fn load(
+    /// saves the updated query
+    async fn save_query(
+        &mut self,
+        context: QueryContext<C, E, Q>,
+    ) -> Result<(), Error> {
+        let aggregate_id = context.aggregate_id.clone();
+
+        debug!(
+            "storing a new query for aggregate id '{}'",
+            &aggregate_id
+        );
+
+        // uninteresting unwrap: this is not a struct for production
+        // use
+        let mut map = self.queries.write().unwrap();
+        map.insert(aggregate_id, context);
+
+        Ok(())
+    }
+
+    /// loads the most recent query
+    async fn load_query(
         &mut self,
         aggregate_id: &str,
     ) -> Result<QueryContext<C, E, Q>, Error> {
+        trace!(
+            "loading query for aggregate id '{}'",
+            aggregate_id
+        );
+
         // uninteresting unwrap: this will not be used in production,
         // for tests only
-        let event_map = self.events.read().unwrap();
 
-        match event_map.get(aggregate_id) {
+        match self
+            .queries
+            .read()
+            .unwrap()
+            .get(aggregate_id)
+        {
             None => {
                 Ok(QueryContext::new(
                     aggregate_id.to_string(),
@@ -92,21 +138,6 @@ impl<
             },
             Some(x) => Ok(x.clone()),
         }
-    }
-
-    /// commits the query
-    async fn commit(
-        &mut self,
-        context: QueryContext<C, E, Q>,
-    ) -> Result<(), Error> {
-        let id = context.aggregate_id.clone();
-
-        // uninteresting unwrap: this is not a struct for production
-        // use
-        let mut event_map = self.events.write().unwrap();
-        event_map.insert(id, context);
-
-        Ok(())
     }
 }
 
@@ -121,7 +152,7 @@ impl<
     async fn dispatch(
         &mut self,
         aggregate_id: &str,
-        events: &[EventContext<C, E>],
+        events: &Vec<EventContext<C, E>>,
     ) -> Result<(), Error> {
         self.dispatch_events(aggregate_id, events)
             .await

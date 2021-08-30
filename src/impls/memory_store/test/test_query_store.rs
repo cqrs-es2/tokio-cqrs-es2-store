@@ -16,55 +16,60 @@ type ThisQueryStore = QueryStore<
     CustomerContactQuery,
 >;
 
-type ThisQueryContext = QueryContext<
-    CustomerCommand,
-    CustomerEvent,
-    CustomerContactQuery,
->;
-
-async fn check_memory_query_store() -> Result<(), Error> {
+async fn check_save_load_queries() -> Result<(), Error> {
     let mut store = ThisQueryStore::default();
 
     let id = "test_id_A";
 
-    let stored_context = store.load(&id).await.unwrap();
+    let stored_context = store.load_query(&id).await.unwrap();
 
     assert_eq!(
         stored_context,
-        ThisQueryContext::new(id.to_string(), 0, Default::default())
+        QueryContext::new(id.to_string(), 0, Default::default())
     );
 
-    let context = ThisQueryContext::new(
+    let context = QueryContext::new(
         id.to_string(),
         1,
         CustomerContactQuery {
-            name: "".to_string(),
+            name: "test name".to_string(),
             email: "test@email.com".to_string(),
             latest_address: "one address".to_string(),
         },
     );
 
-    store.commit(context).await.unwrap();
+    store
+        .save_query(context.clone())
+        .await
+        .unwrap();
 
-    let stored_context = store.load(&id).await.unwrap();
+    let stored_context = store.load_query(&id).await.unwrap();
 
-    assert_eq!(
-        stored_context,
-        ThisQueryContext::new(
-            id.to_string(),
-            1,
-            CustomerContactQuery {
-                name: "".to_string(),
-                email: "test@email.com".to_string(),
-                latest_address: "one address".to_string(),
-            },
-        )
+    assert_eq!(stored_context, context);
+
+    let context = QueryContext::new(
+        id.to_string(),
+        2,
+        CustomerContactQuery {
+            name: "test name2".to_string(),
+            email: "test2@email.com".to_string(),
+            latest_address: "second address".to_string(),
+        },
     );
+
+    store
+        .save_query(context.clone())
+        .await
+        .unwrap();
+
+    let stored_context = store.load_query(&id).await.unwrap();
+
+    assert_eq!(stored_context, context);
 
     Ok(())
 }
 
 #[test]
-fn test_memory_query_store() {
-    tokio_test::block_on(check_memory_query_store()).unwrap();
+fn test_save_load_queries() {
+    tokio_test::block_on(check_save_load_queries()).unwrap();
 }

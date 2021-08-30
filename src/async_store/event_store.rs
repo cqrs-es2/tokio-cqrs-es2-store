@@ -72,36 +72,6 @@ impl<
         }
     }
 
-    async fn load_aggregate_from_events(
-        &mut self,
-        aggregate_id: &str,
-    ) -> Result<AggregateContext<C, E, A>, Error> {
-        let id = aggregate_id.to_string();
-
-        let events = self.load_events(&id).await?;
-
-        if events.len() == 0 {
-            return Ok(AggregateContext::new(
-                id,
-                A::default(),
-                0,
-            ));
-        }
-
-        let mut aggregate = A::default();
-
-        events
-            .iter()
-            .map(|x| &x.payload)
-            .for_each(|x| aggregate.apply(&x));
-
-        Ok(AggregateContext::new(
-            id,
-            aggregate,
-            events.last().unwrap().sequence,
-        ))
-    }
-
     async fn commit_with_snapshots(
         &mut self,
         events: Vec<E>,
@@ -217,39 +187,5 @@ impl<
                 )
             })
             .collect())
-    }
-
-    async fn load_aggregate(
-        &mut self,
-        aggregate_id: &str,
-    ) -> Result<AggregateContext<C, E, A>, Error> {
-        match self.with_snapshots {
-            true => {
-                self.load_aggregate_from_snapshot(aggregate_id)
-                    .await
-            },
-            false => {
-                self.load_aggregate_from_events(aggregate_id)
-                    .await
-            },
-        }
-    }
-
-    async fn commit(
-        &mut self,
-        events: Vec<E>,
-        context: AggregateContext<C, E, A>,
-        metadata: HashMap<String, String>,
-    ) -> Result<Vec<EventContext<C, E>>, Error> {
-        match self.with_snapshots {
-            true => {
-                self.commit_with_snapshots(events, context, metadata)
-                    .await
-            },
-            false => {
-                self.commit_events_only(events, context, metadata)
-                    .await
-            },
-        }
     }
 }
