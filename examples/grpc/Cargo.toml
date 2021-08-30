@@ -8,7 +8,7 @@ authors = ["Bassem Girgis <bgirgis@pm.me>"]
 [features]
 default = []
 
-# sqlx
+# sql
 with-postgres = ["sqlx", "tokio-cqrs-es2-store/with-postgres"]
 with-mysql = ["sqlx", "tokio-cqrs-es2-store/with-mysql"]
 with-mariadb = ["sqlx", "tokio-cqrs-es2-store/with-mysql"]

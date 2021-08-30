@@ -1,5 +1,9 @@
 # Change log
 
+## `v0.2.1`
+
+- Improve SQLite errors
+
 ## `v0.2.0`
 
 - Remove obsolete module

@@ -73,7 +73,16 @@ impl<
             .await
         {
             Ok(x) => x,
-            Err(e) => return Err(Error::new(e.to_string().as_str())),
+            Err(e) => {
+                return Err(Error::new(
+                    format!(
+                        "unable to serialize to create queries \
+                         table with error: {}",
+                        e
+                    )
+                    .as_str(),
+                ));
+            },
         };
 
         debug!(

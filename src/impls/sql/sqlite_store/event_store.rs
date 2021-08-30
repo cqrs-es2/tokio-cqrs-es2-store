@@ -74,7 +74,16 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             .await
         {
             Ok(x) => x,
-            Err(e) => return Err(Error::new(e.to_string().as_str())),
+            Err(e) => {
+                return Err(Error::new(
+                    format!(
+                        "unable to serialize to create events table \
+                         with error: {}",
+                        e
+                    )
+                    .as_str(),
+                ));
+            },
         };
 
         debug!(
@@ -91,7 +100,16 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             .await
         {
             Ok(x) => x,
-            Err(e) => return Err(Error::new(e.to_string().as_str())),
+            Err(e) => {
+                return Err(Error::new(
+                    format!(
+                        "unable to serialize to create snapshots \
+                         table with error: {}",
+                        e
+                    )
+                    .as_str(),
+                ));
+            },
         };
 
         debug!(
