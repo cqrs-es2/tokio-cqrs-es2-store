@@ -12,7 +12,7 @@
 //! Provides async interfaces to different database implementations
 //! for the CQRS system store.
 //!
-//! # Design
+//! ## Design
 //!
 //! The main components of this library are:
 //!
@@ -20,7 +20,7 @@
 //!   - `IEventStore` - an interface for async event stores
 //!   - `IQueryStore` - an interface for async query stores
 //!
-//! # Features
+//! ## Features
 //!
 //! - `with-sqlx-postgres` - async Postgres store
 //! - `with-sqlx-mysql` - async MySQL store
@@ -32,7 +32,7 @@
 //! - `with-all-kv-db` - all key-value DBs drivers
 //! - `with-all-async` - all async drivers (default)
 //!
-//! # Installation
+//! ## Installation
 //!
 //! To use this library in an async application, add the following to
 //! your dependency section in the project's `Cargo.toml`:
@@ -83,7 +83,7 @@
 //! ] }
 //! ```
 //!
-//! # Usage
+//! ## Usage
 //!
 //! A full async store example application is available [here](https://github.com/brgirgis/tokio-cqrs-es2-store/tree/master/examples/grpc).
 

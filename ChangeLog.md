@@ -3,6 +3,7 @@
 ## `v0.1.3`
 
 - Remove obsolete module
+- update docs
 
 ## `v0.1.2`
 
