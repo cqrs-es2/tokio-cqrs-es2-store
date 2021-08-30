@@ -76,8 +76,8 @@ impl<
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "unable to serialize to create queries \
-                         table with error: {}",
+                        "unable to create queries table with error: \
+                         {}",
                         e
                     )
                     .as_str(),

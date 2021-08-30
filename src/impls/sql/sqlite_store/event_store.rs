@@ -77,8 +77,8 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "unable to serialize to create events table \
-                         with error: {}",
+                        "unable to create events table with error: \
+                         {}",
                         e
                     )
                     .as_str(),
@@ -103,8 +103,8 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "unable to serialize to create snapshots \
-                         table with error: {}",
+                        "unable to create snapshots table with \
+                         error: {}",
                         e
                     )
                     .as_str(),
