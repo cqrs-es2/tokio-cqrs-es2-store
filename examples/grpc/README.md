@@ -23,7 +23,7 @@ Start the docker stack and enter the project folder:
 
 Start the application
 
-    cargo run --features with-sqlx-postgres --bin server
+    cargo run --features with-postgres --bin server
 
 Call the API using the provided client for testing the running application:
 

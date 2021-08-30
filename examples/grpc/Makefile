@@ -12,16 +12,16 @@ client:
 	cargo run --bin client
 
 postgres:
-	cargo run --features with-sqlx-postgres --bin server
+	cargo run --features with-postgres --bin server
 
 mysql:
-	cargo run --features with-sqlx-mysql --bin server
+	cargo run --features with-mysql --bin server
 
 mariadb:
-	cargo run --features with-sqlx-mariadb --bin server
+	cargo run --features with-mariadb --bin server
 
 sqlite:
-	cargo run --features with-sqlx-sqlite --bin server
+	cargo run --features with-sqlite --bin server
 
 mongodb:
 	cargo run --features with-mongodb --bin server

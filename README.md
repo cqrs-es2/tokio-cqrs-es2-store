@@ -22,10 +22,10 @@ The main components of this library are:
 
 ## Features
 
-- `with-sqlx-postgres` - async Postgres store
-- `with-sqlx-mysql` - async MySQL store
-- `with-sqlx-sqlite` - async SQLite store
-- `with-all-sqlx` - all sqlx drivers
+- `with-postgres` - async Postgres store
+- `with-mysql` - async MySQL store
+- `with-sqlite` - async SQLite store
+- `with-all-sql` - all SQL drivers
 - `with-mongodb` - async MongoDB store
 - `with-all-doc-db` - all doc DBs drivers
 - `with-redis` - async Redis store
@@ -57,7 +57,7 @@ cqrs-es2 = { version = "*"}
 
 # Sync postgres store implementation
 tokio-cqrs-es2-store = { version = "*", default-features = false, features = [
-  "with-sqlx-postgres",
+  "with-postgres",
 ] }
 
 # sqlx

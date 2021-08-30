@@ -1,7 +1,7 @@
 
 [package]
 name = "tokio-cqrs-es2-store"
-version = "0.1.3"
+version = "0.2.0"
 authors = ["Bassem Girgis <brgirgis@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -14,23 +14,17 @@ keywords = ["cqrs", "event-sourcing", "es", "DDD"]
 [features]
 default = ["with-all-async"]
 
-# sqlx
-with-sqlx-postgres = [
-  "tokio",
-  "sqlx",
-  "sqlx/postgres",
-  "sqlx/uuid",
-  "sqlx/json",
-]
-with-sqlx-mysql = ["tokio", "sqlx", "sqlx/mysql"]
-#with-sqlx-mssql = ["tokio", "sqlx", "sqlx/mssql"]
-with-sqlx-sqlite = ["tokio", "sqlx", "sqlx/sqlite"]
+# sql
+with-postgres = ["tokio", "sqlx", "sqlx/postgres", "sqlx/uuid", "sqlx/json"]
+with-mysql = ["tokio", "sqlx", "sqlx/mysql"]
+#with-mssql = ["tokio", "sqlx", "sqlx/mssql"]
+with-sqlite = ["tokio", "sqlx", "sqlx/sqlite"]
 
-with-all-sqlx = [
-  "with-sqlx-postgres",
-  "with-sqlx-mysql",
-  #"with-sqlx-mssql",
-  "with-sqlx-sqlite",
+with-all-sql = [
+  "with-postgres",
+  "with-mysql",
+  #"with-mssql",
+  "with-sqlite",
 ]
 
 # documents DBs
@@ -44,7 +38,7 @@ with-redis = ["tokio", "redis"]
 with-all-kv-db = ["with-redis"]
 
 # all async
-with-all-async = ["with-all-sqlx", "with-all-doc-db", "with-all-kv-db"]
+with-all-async = ["with-all-sql", "with-all-doc-db", "with-all-kv-db"]
 
 [dependencies]
 # logging

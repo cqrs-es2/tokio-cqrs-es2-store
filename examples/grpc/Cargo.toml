@@ -9,11 +9,11 @@ authors = ["Bassem Girgis <bgirgis@pm.me>"]
 default = []
 
 # sqlx
-with-sqlx-postgres = ["sqlx", "tokio-cqrs-es2-store/with-sqlx-postgres"]
-with-sqlx-mysql = ["sqlx", "tokio-cqrs-es2-store/with-sqlx-mysql"]
-with-sqlx-mariadb = ["sqlx", "tokio-cqrs-es2-store/with-sqlx-mysql"]
-#with-sqlx-mssql = ["sqlx", "tokio-cqrs-es2-store/with-sqlx-mssql"]
-with-sqlx-sqlite = ["sqlx", "tokio-cqrs-es2-store/with-sqlx-sqlite"]
+with-postgres = ["sqlx", "tokio-cqrs-es2-store/with-postgres"]
+with-mysql = ["sqlx", "tokio-cqrs-es2-store/with-mysql"]
+with-mariadb = ["sqlx", "tokio-cqrs-es2-store/with-mysql"]
+#with-mssql = ["sqlx", "tokio-cqrs-es2-store/with-mssql"]
+with-sqlite = ["sqlx", "tokio-cqrs-es2-store/with-sqlite"]
 
 # documents DBs
 with-mongodb = ["mongodb", "tokio-cqrs-es2-store/with-mongodb"]

@@ -1,9 +1,10 @@
 # Change log
 
-## `v0.1.3`
+## `v0.2.0`
 
 - Remove obsolete module
-- update docs
+- Update docs
+- Drop `sqlx` prefix from features' names
 
 ## `v0.1.2`
 

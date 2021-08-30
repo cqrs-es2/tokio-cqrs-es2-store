@@ -1,18 +1,18 @@
 #[cfg(any(
-  //feature = "with-sqlx-mssql",
-  feature = "with-sqlx-mysql",
-  feature = "with-sqlx-postgres",
-  feature = "with-sqlx-sqlite",
+  //feature = "with-mssql",
+  feature = "with-mysql",
+  feature = "with-postgres",
+  feature = "with-sqlite",
 ))]
 pub use sql::*;
 
 pub mod memory_store;
 
 #[cfg(any(
-  //feature = "with-sqlx-mssql",
-  feature = "with-sqlx-mysql",
-  feature = "with-sqlx-postgres",
-  feature = "with-sqlx-sqlite",
+  //feature = "with-mssql",
+  feature = "with-mysql",
+  feature = "with-postgres",
+  feature = "with-sqlite",
 ))]
 mod sql;
 
