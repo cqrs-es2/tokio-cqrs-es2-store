@@ -49,7 +49,7 @@ impl<
         Q: IQuery<C, E>,
     > QueryStore<C, E, A, Q>
 {
-    /// constructor
+    /// Constructor
     pub fn new(db: Database) -> Self {
         let x = Self {
             db,

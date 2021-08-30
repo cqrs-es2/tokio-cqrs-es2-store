@@ -42,7 +42,7 @@ impl<
         Q: IQuery<C, E>,
     > QueryStore<C, E, A, Q>
 {
-    /// constructor
+    /// Constructor
     pub fn new(pool: MySqlPool) -> Self {
         let x = Self {
             pool,

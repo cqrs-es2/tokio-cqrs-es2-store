@@ -32,7 +32,7 @@ pub struct EventStore<C: ICommand, E: IEvent, A: IAggregate<C, E>> {
 impl<C: ICommand, E: IEvent, A: IAggregate<C, E>>
     EventStore<C, E, A>
 {
-    /// constructor
+    /// Constructor
     pub fn new(conn: Connection) -> Self {
         let x = Self {
             conn,
