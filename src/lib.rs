@@ -24,7 +24,6 @@
 //!
 //! - `with-sqlx-postgres` - async Postgres store
 //! - `with-sqlx-mysql` - async MySQL store
-//! - `with-sqlx-mariadb` - async MariaDB store
 //! - `with-sqlx-sqlite` - async SQLite store
 //! - `with-all-sqlx` - all sqlx drivers
 //! - `with-mongodb` - async MongoDB store

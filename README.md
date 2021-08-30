@@ -12,7 +12,7 @@
 
 Provides async interfaces to different database implementations for the CQRS system store.
 
-# Design
+## Design
 
 The main components of this library are:
 
@@ -20,11 +20,10 @@ The main components of this library are:
 - `IEventStore` - an interface for async event stores
 - `IQueryStore` - an interface for async query stores
 
-# Features
+## Features
 
 - `with-sqlx-postgres` - async Postgres store
 - `with-sqlx-mysql` - async MySQL store
-- `with-sqlx-mariadb` - async MariaDB store
 - `with-sqlx-sqlite` - async SQLite store
 - `with-all-sqlx` - all sqlx drivers
 - `with-mongodb` - async MongoDB store
@@ -33,7 +32,7 @@ The main components of this library are:
 - `with-all-kv-db` - all key-value DBs drivers
 - `with-all-async` - all async drivers (default)
 
-# Installation
+## Installation
 
 To use this library in an async application, add the following to
 your dependency section in the project's `Cargo.toml`:
@@ -84,7 +83,7 @@ tokio = { version = "1", features = [
 ] }
 ```
 
-# Usage
+## Usage
 
 Full async store example applications:
 

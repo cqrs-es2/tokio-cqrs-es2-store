@@ -1,5 +1,9 @@
 # Change log
 
+## `v0.1.2`
+
+- update docs
+
 ## `v0.1.1`
 
 - update docs
