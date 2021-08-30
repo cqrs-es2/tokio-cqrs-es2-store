@@ -6,10 +6,7 @@ clean:
 	rm -rf target
 	rm -rf Cargo.lock
 	rm -rf *.log
-	rm -rf demo.db*
-
-test:
-	cargo test
+	rm -rf test.db*
 
 client:
 	cargo run --bin client
