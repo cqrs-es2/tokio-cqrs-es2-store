@@ -92,4 +92,4 @@ futures = { version = "0.3", optional = true }
 
 [dev-dependencies]
 uuid = { version = "0.8.2", features = ["v4"] }
-tokio-test = "*"
+tokio-test = "0.4.2"
