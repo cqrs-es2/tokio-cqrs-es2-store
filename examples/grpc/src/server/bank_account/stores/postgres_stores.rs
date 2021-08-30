@@ -2,10 +2,8 @@ use cqrs_es2::Error;
 
 use tokio_cqrs_es2_store::{
     postgres_store::{
-        EventStorage,
-        PostgresEventStore,
-        PostgresQueryStore,
-        QueryStorage,
+        EventStore,
+        QueryStore,
     },
     Repository,
 };
@@ -20,13 +18,10 @@ use super::super::{
     queries::BankAccountQuery,
 };
 
-type ThisEventStore = PostgresEventStore<
-    BankAccountCommand,
-    BankAccountEvent,
-    BankAccount,
->;
+type ThisEventStore =
+    EventStore<BankAccountCommand, BankAccountEvent, BankAccount>;
 
-type ThisQueryStore = PostgresQueryStore<
+type ThisQueryStore = QueryStore<
     BankAccountCommand,
     BankAccountEvent,
     BankAccount,
@@ -42,19 +37,17 @@ type ThisRepository = Repository<
 
 pub async fn get_event_store() -> Result<ThisRepository, Error> {
     Ok(ThisRepository::new(
-        ThisEventStore::new(
-            EventStorage::new(db_connection().await.unwrap()),
-            true,
-        ),
+        ThisEventStore::new(db_connection().await.unwrap()),
         vec![
             Box::new(get_query_store().await.unwrap()),
             Box::new(LoggingDispatcher::new()),
         ],
+        true,
     ))
 }
 
 pub async fn get_query_store() -> Result<ThisQueryStore, Error> {
-    Ok(ThisQueryStore::new(QueryStorage::new(
+    Ok(ThisQueryStore::new(
         db_connection().await.unwrap(),
-    )))
+    ))
 }

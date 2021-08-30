@@ -158,7 +158,7 @@ impl BankAccount for BankAccountService {
         let context = match get_query_store()
             .await
             .unwrap()
-            .load(req.account_id.as_str())
+            .load_query(req.account_id.as_str())
             .await
         {
             Ok(x) => x,

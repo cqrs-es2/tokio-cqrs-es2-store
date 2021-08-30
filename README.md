@@ -27,6 +27,10 @@ The main components of this library are:
 - `with-sqlx-mariadb` - async MariaDB store
 - `with-sqlx-sqlite` - async SQLite store
 - `with-all-sqlx` - all sqlx drivers
+- `with-mongodb` - async MongoDB store
+- `with-all-doc-db` - all doc DBs drivers
+- `with-redis` - async Redis store
+- `with-all-kv-db` - all key-value DBs drivers
 - `with-all-async` - all async drivers (default)
 
 # Installation

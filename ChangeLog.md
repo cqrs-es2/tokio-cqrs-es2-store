@@ -1,5 +1,10 @@
 # Change log
 
+## `v0.1.1`
+
+- update docs
+- fix gRPC example
+
 ## `v0.1.0`
 
 - Initial release
