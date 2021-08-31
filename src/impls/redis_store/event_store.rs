@@ -300,7 +300,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "unable to insert new snapshot for \
+                        "unable to insert/update snapshot for \
                          aggregate id '{}' with error: {}",
                         &aggregate_id, e
                     )

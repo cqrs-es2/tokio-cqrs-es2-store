@@ -119,7 +119,7 @@ impl<
         let query_type = Q::query_type();
 
         trace!(
-            "loading query `{}` for aggregate id '{}'",
+            "loading query '{}' for aggregate id '{}'",
             query_type,
             aggregate_id
         );

@@ -261,7 +261,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
                 if x.rows_affected() != 1 {
                     return Err(Error::new(
                         format!(
-                            "insert new snapshot failed for \
+                            "insert/update snapshot failed for \
                              aggregate id '{}'",
                             &aggregate_id
                         )
@@ -272,7 +272,7 @@ impl<C: ICommand, E: IEvent, A: IAggregate<C, E>> IEventStore<C, E, A>
             Err(e) => {
                 return Err(Error::new(
                     format!(
-                        "unable to insert new snapshot for \
+                        "unable to insert/update snapshot for \
                          aggregate id '{}' with error: {}",
                         &aggregate_id, e
                     )
