@@ -1,4 +1,8 @@
 
+[workspace]
+
+members = [".", "examples/grpc"]
+
 [package]
 name = "tokio-cqrs-es2-store"
 version = "0.2.1"

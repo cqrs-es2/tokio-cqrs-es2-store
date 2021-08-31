@@ -2,7 +2,7 @@
 
 ## `v0.2.1`
 
-- Improve SQLite errors
+- Improve error messages
 
 ## `v0.2.0`
 

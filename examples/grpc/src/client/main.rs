@@ -26,6 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .open_account(request)
         .await?
         .into_inner();
+
     println!("RESPONSE={:?}", response);
+
     Ok(())
 }
