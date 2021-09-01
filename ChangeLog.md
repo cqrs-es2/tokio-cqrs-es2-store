@@ -3,6 +3,7 @@
 ## `v0.2.1`
 
 - Improve error messages
+- Add Cached stores
 
 ## `v0.2.0`
 
