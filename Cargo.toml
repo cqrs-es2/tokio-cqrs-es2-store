@@ -5,7 +5,7 @@ members = [".", "examples/grpc"]
 
 [package]
 name = "tokio-cqrs-es2-store"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Bassem Girgis <brgirgis@gmail.com>"]
 edition = "2018"
 license = "MIT"
