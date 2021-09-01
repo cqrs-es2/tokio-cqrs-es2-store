@@ -10,11 +10,11 @@ use tokio_cqrs_es2_store::IQueryStore;
 
 use crate::bank_account_api::{
     bank_account_server::BankAccount,
-    BankAccountQueryRequest,
     BankAccountSummaryResponse,
     CommandResponse,
     DepositMoneyRequest,
     OpenBankAccountRequest,
+    QueryRequest,
     WithdrawMoneyRequest,
     WriteCheckRequest,
 };
@@ -149,7 +149,7 @@ impl BankAccount for BankAccountService {
 
     async fn get_account_summary(
         &self,
-        request: Request<BankAccountQueryRequest>,
+        request: Request<QueryRequest>,
     ) -> Result<Response<BankAccountSummaryResponse>, Status> {
         let req = request.get_ref();
 

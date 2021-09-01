@@ -35,7 +35,7 @@ message CommandResponse {
   bool is_successful = 1;
 }
 
-message BankAccountQueryRequest {
+message QueryRequest {
   string account_id = 1;
 }
 
@@ -48,5 +48,5 @@ service BankAccount {
   rpc write_check(WriteCheckRequest) returns (CommandResponse);
 
   // queries
-  rpc get_account_summary(BankAccountQueryRequest) returns (BankAccountSummaryResponse);
+  rpc get_account_summary(QueryRequest) returns (BankAccountSummaryResponse);
 }
