@@ -1,5 +1,9 @@
 # Change log
 
+## `v0.3.0`
+
+- Updated `cqrs-es2`
+
 ## `v0.2.2`
 
 - Add Cached stores
